@@ -29,7 +29,7 @@ keyboard_input:                     # A key is pressed
     syscall
 
     b main
-
+    
 respond_to_Q:
 	li $v0, 10                      # Quit gracefully
 	syscall

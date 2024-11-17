@@ -15,6 +15,19 @@
 # - Base Address for Display:   0x10008000 ($gp)
 ##############################################################################
 
+##############################################################################
+# Macros
+##############################################################################
+.macro STORE_TO_STACK(%reg)
+    addi $sp, $sp, -4       # decrement stack pointer by 4 bytes (1 word)
+    sw %reg, 0($sp)         # store word from register onto stack
+.end_macro
+
+.macro RESTORE_FROM_STACK(%reg)
+    lw %reg, 0($sp)         # load word from stack into register
+    addi $sp, $sp, 4        # increment stack pointer by 4 bytes (1 word)
+.end_macro
+
     .data
 ##############################################################################
 # Immutable Data
@@ -61,6 +74,7 @@ game_loop:
 
     # 5. Go back to Step 1
     j game_loop
+
 
 ##############################################################################
 # Function to draw a vertical line on the display
@@ -115,3 +129,109 @@ draw_horizontal_line:
         bne $t0, $t1, dhl_line_start    # Repeat until the ending point is reached
     # Return to the calling program
     jr $ra
+
+draw_bottle:
+    # Draw the bottle
+    lw $t0, ADDR_DSPL       # $t0 = base address for display
+    lw $t1, WHITE           # $t1 = white
+    # Draw the top of the bottle
+    li $a0, 6               # $a3 = Starting X coordinate
+    li $a1, 9               # $a2 = Starting Y coordinate
+    li $a2, 4               # $a2 = Length of the line
+    lw $a3, WHITE           # $a3 = Colour
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    STORE_TO_STACK($a3)
+    jal draw_vertical_line
+    RESTORE_FROM_STACK($a3)
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    li $a0, 10              # $a3 = Starting X coordinate
+    li $a1, 9               # $a2 = Starting Y coordinate
+    li $a2, 4               # $a2 = Length of the line
+    lw $a3, WHITE           # $a3 = Colour
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    STORE_TO_STACK($a3)
+    jal draw_vertical_line
+    RESTORE_FROM_STACK($a3)
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    li $a0, 2               # $a3 = Starting X coordinate
+    li $a1, 12               # $a2 = Starting Y coordinate
+    li $a2, 5               # $a2 = Length of the line
+    lw $a3, WHITE           # $a3 = Colour
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    STORE_TO_STACK($a3)
+    jal draw_horizontal_line
+    RESTORE_FROM_STACK($a3)
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    li $a0, 10               # $a3 = Starting X coordinate
+    li $a1, 12               # $a2 = Starting Y coordinate
+    li $a2, 5               # $a2 = Length of the line
+    lw $a3, WHITE           # $a3 = Colour
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    STORE_TO_STACK($a3)
+    jal draw_horizontal_line
+    RESTORE_FROM_STACK($a3)
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    # Draw the bottom of the bottle
+    li $a0, 2              # $a3 = Starting X coordinate
+    li $a1, 12               # $a2 = Starting Y coordinate
+    li $a2, 18               # $a2 = Length of the line
+    lw $a3, WHITE           # $a3 = Colour
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    STORE_TO_STACK($a3)
+    jal draw_vertical_line
+    RESTORE_FROM_STACK($a3)
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    li $a0, 14              # $a3 = Starting X coordinate
+    li $a1, 12               # $a2 = Starting Y coordinate
+    li $a2, 18               # $a2 = Length of the line
+    lw $a3, WHITE           # $a3 = Colour
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    STORE_TO_STACK($a3)
+    jal draw_vertical_line
+    RESTORE_FROM_STACK($a3)
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    li $a0, 2               # $a3 = Starting X coordinate
+    li $a1, 29               # $a2 = Starting Y coordinate
+    li $a2, 13               # $a2 = Length of the line
+    lw $a3, WHITE           # $a3 = Colour
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    STORE_TO_STACK($a3)
+    jal draw_horizontal_line
+    RESTORE_FROM_STACK($a3)
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+
