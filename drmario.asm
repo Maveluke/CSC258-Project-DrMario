@@ -63,6 +63,9 @@ BLACK:
     # Run the game.
 main:
     # Initialize the game
+    jal clear_screen
+
+    jal draw_bottle
 
 game_loop:
     # 1a. Check if key has been pressed
@@ -103,6 +106,25 @@ draw_vertical_line:
     # Return to the calling program
     jr $ra
 
+
+##############################################################################
+# Function to clear the screen
+# Clear screen to black
+clear_screen:
+    lw $t0, DISPLAY_ADDRESS    # Load base address
+    li $t1, 4096              # 64 * 64 pixels
+    lw $t2, BLACK             # Load black color
+
+clear_loop:
+    sw $t2, 0($t0)            # Store black color
+    addi $t0, $t0, 4         # Next pixel
+    addi $t1, $t1, -1        # Decrement counter
+    bnez $t1, clear_loop     # Continue if not done
+    jr $ra
+
+
+
+
 ##############################################################################
 # Function to draw a horizontal line on the display
 # Assumption: the line can be drawn within the same row
@@ -130,6 +152,11 @@ draw_horizontal_line:
     # Return to the calling program
     jr $ra
 
+##############################################################################
+# Function to draw the bottle
+# Draws the bottle on the display
+# The bottle is 13 units wide and 21 units tall
+# The bottle is drawn with the top left corner at (6, 9)
 draw_bottle:
     # Draw the bottle
     lw $t0, ADDR_DSPL       # $t0 = base address for display
