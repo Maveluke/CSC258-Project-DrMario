@@ -97,12 +97,13 @@ game_loop:
     jal init_capsule_state
     jal generate_random_capsule_colors
     jal draw_capsule
+    beq $v0, 1, game_end
     
     gl_after_generate:
     # 1a. Check if key has been pressed
     lw $t0, ADDR_KBRD                   # $t0 = base address for keyboard
     lw $t1, 0($t0)                      # Load first word from keyboard
-    bne $t1, 1, gl_after_generate               # If the first word is not 1, a key hasn't been pressed
+    bne $t1, 1, gl_after_generate       # If the first word is not 1, no key is pressed
     # 1b. Check which key has been pressed
     lw $t1, 4($t0)                      # $t1 = key pressed (second word from keyboard)
     beq $t1, 0x71, game_end             # Check if the key is 'q'
@@ -110,7 +111,7 @@ game_loop:
     beq $t1, 0x61, handle_move_left     # Check if the key is 'a'
     beq $t1, 0x73, handle_move_down     # Check if the key is 's'
     beq $t1, 0x64, handle_move_right    # Check if the key is 'd'
-    j gl_after_generate                 # Invalid key pressed, go back to the game loop
+    j gl_after_generate                 # Invalid key pressed, get another key
     handle_rotate:
         jal rotate
         j after_handling_move
@@ -119,6 +120,7 @@ game_loop:
         j after_handling_move
     handle_move_down:
         jal move_down
+        beq $v0, 1, generate_new_capsule
         j after_handling_move
     handle_move_right:
         jal move_right
@@ -135,7 +137,8 @@ game_loop:
 
     j gl_after_generate
     # 5. Go back to Step 1
-    # j game_loop
+    generate_new_capsule:
+        j game_loop
 game_end:
     li $v0, 10                  # Terminate the program gracefully
     syscall
@@ -256,6 +259,7 @@ move_right:
 # Function to handle capsule movement down (pressing s)
 # Assumption: The capsule position is valid before moving down
 # Note: The capsule can only move down if there is nothing below it
+# Return value: $v0 = 1 if the capsule block can't move down, $v0 = 0 otherwise
 move_down:
     STORE_TO_STACK($ra)                 # Save the return address
     lw $t9, BLACK                       # $t9 = black
@@ -263,7 +267,7 @@ move_down:
     addi $t0, $s0, 128                  # $t0 = address of the bottom left pixel of the capsule block
     addi $t0, $t0, 128                  # $t0 = new address of the bottom left pixel of the capsule block after moving down
     lw $t1, 0($t0)                      # $t1 = color of the new address of the bottom left pixel of the capsule block
-    bne $t1, $t9, md_end                # Check if the new address of the bottom left pixel is occupied (isn't black)
+    bne $t1, $t9, md_cant_move          # Check if the new address of the bottom left pixel is occupied (isn't black)
     # The bottom left pixel of the capsule block can move down
     # Check if other pixels of the capsule block can move down
     jal get_pattern                     # Get the pattern of the current capsule block
@@ -273,13 +277,18 @@ move_down:
     addi $t0, $s0, 132                  # $t0 = address of the bottom right pixel of the capsule block
     addi $t0, $t0, 128                  # $t0 = new address of the bottom right pixel of the capsule block after moving down
     lw $t1, 0($t0)                      # $t1 = color of the new address of the bottom right pixel of the capsule block
-    bne $t1, $t9, md_end                # Check if the new address of the bottom right pixel is occupied (isn't black)
+    bne $t1, $t9, md_cant_move          # Check if the new address of the bottom right pixel is occupied (isn't black)
     j md_can_move                       # The bottom right pixel of the capsule block also can move down
 
     md_can_move:
         jal remove_capsule
         addi $s0, $s0, 128              # Move the capsule block down by 1 pixel
         jal draw_capsule
+        li $v0, 0                       # The capsule block can move down
+        j md_end
+    md_cant_move:
+        li $v0, 1                       # The capsule block can't move down
+        j md_end
     md_end:
         # Return to the calling program
         RESTORE_FROM_STACK($ra)         # Restore the return address
@@ -610,9 +619,15 @@ generate_random_capsule_colors:
 # Function to draw a capsule on the display
 # The location of the capsule is stored in $s0
 # The color of the 2x2 box for the capsule is stored in CURR_CAPSULE_STATE
+# Return value: $v0 = 1 if can't add new capsule, $v0 = 0 otherwise
 draw_capsule:
     STORE_TO_STACK($ra)
     move $t0, $s0                   # Set the starting address for the capsule stored in $s0
+    lw $t9, BLACK                   # $t9 = black
+    lw $t1, 0($t0)                  # $t1 = color of the top pixel
+    lw $t2, 128($t0)                # $t2 = color of the bottom pixel
+    bne $t1, $t9, dc_fail           # Check if the top pixel isn't black (non-empty)
+    bne $t2, $t9, dc_fail           # Check if the bottom pixel isn't black (non-empty)
     jal get_pattern                 # Get the pattern of the current capsule block
     la $t1, CURR_CAPSULE_STATE      # Set the current color palette
     lw $t2, 0($t1)                  # Set the top left color
@@ -626,12 +641,19 @@ draw_capsule:
     draw_pattern_1:
         sw $t4, 128($t0)            # Draw the bottom left pixel
         sw $t5, 132($t0)            # Draw the bottom right pixel
+        li $v0, 0                   # Successfully added new capsule
+        j dc_end
     draw_pattern_2:
         sw $t2, 0($t0)              # Draw the top left pixel
         sw $t4, 128($t0)            # Draw the bottom left pixel
-
-    RESTORE_FROM_STACK($ra)
-    jr $ra
+        li $v0, 0                   # Successfully added new capsule
+        j dc_end
+    dc_fail:
+        li $v0, 1                   # Can't add new capsule
+        j dc_end
+    dc_end:
+        RESTORE_FROM_STACK($ra)
+        jr $ra
 
 
 ##############################################################################
@@ -663,8 +685,7 @@ remove_capsule:
 
 ##############################################################################
 # Function to return random color
-# Return values:
-# - $v0: The color generated
+# Return value: $v0 = color generated
 generate_random_color:
     # Generate a random number from 0 - 2 inclusive, and put the result in $a0 register
     li $v0, 42                      # syscall 42: generate random number
