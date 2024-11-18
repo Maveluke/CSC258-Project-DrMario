@@ -43,15 +43,30 @@ GRID_WIDTH:
 GRID_HEIGHT:
     .word 16
 RED:
-    .word 0xff0000
+    .word 0xff0000    # Bright red
 GREEN:
-    .word 0x00ff00
+    .word 0x00ff00    # Bright green
 BLUE:
-    .word 0x0000ff
+    .word 0x0000ff    # Bright blue
 WHITE:
     .word 0xffffff
 BLACK:
     .word 0x000000
+VIRUS_COUNT:
+    .word 4
+ADDR_VIRUS_STARTING_POINT:
+    .word 0x1000888c  # 17 * (32 * 4) + 3 * 4 = 2188
+POSSIBLE_VIRUS_POSITION_HEIGHT:
+    .word 12          # 3 / 4 * GRID_HEIGHT = 12
+POSSIBLE_VIRUS_POSITION_WIDTH:
+    .word 11          # GRID_WIDTH = 11
+# Virus colors - darker variants of the regular colors
+RED_VIRUS:
+    .word 0x990000    # Dark red
+GREEN_VIRUS:
+    .word 0x009900    # Dark green
+BLUE_VIRUS:
+    .word 0x000099    # Dark blue
 
 ##############################################################################
 # Mutable Data
@@ -60,6 +75,7 @@ CURR_CAPSULE_STATE:
     .space 16
 
 # s0: Current capsule block's top left pixel address
+# s1: The current number of viruses in the bottle
 
 PREV_BITMAP:
     .space 4096
@@ -79,12 +95,17 @@ main:
 
     jal draw_bottle
 
+    # Initialize the viruses
+    lw $s1, VIRUS_COUNT         # $s1 = initial number of viruses
+    jal draw_viruses            # Draw the viruses
+
     # Set the initial capsule location
     li $a2, 12  # X coordinate
     li $a3, 9   # Y coordinate
     jal calculate_pixel_address
     move $a3, $v0
 
+    # Draw the initial capsule
     jal init_capsule_state
     jal generate_random_capsule_colors
     jal draw_capsule
@@ -692,7 +713,7 @@ remove_capsule:
 # Function to return random color
 # Return value: $v0 = color generated
 generate_random_color:
-    # Generate a random number from 0 - 2 inclusive, and put the result in $a0 register
+    # Generate a random number from 0 - 2 inclusive, and put the result in $a0
     li $v0, 42                      # syscall 42: generate random number
     li $a0, 0                       # Random number generated from 0
     li $a1, 3                       # to 2 inclusive
@@ -720,3 +741,74 @@ generate_random_color:
     grc_end:
         jr $ra
 
+
+##############################################################################
+# Function to return random virus color
+# Return value: $v0 = color generated
+generate_random_virus_color:
+    # Generate a random number from 0 - 2 inclusive, and put the result in $a0
+    li $v0, 42                      # syscall 42: generate random number
+    li $a0, 0                       # Random number generated from 0
+    li $a1, 3                       # to 2 inclusive
+    syscall
+
+    beq $a0, 0, return_dark_red     # Check if the random number is 0
+    beq $a0, 1, return_dark_green   # Check if the random number is 1
+    beq $a0, 2, return_dark_blue    # Check if the random number is 2
+
+    return_dark_red:
+        lw $v0, RED_VIRUS           # Return dark red color
+        j grvc_end
+    return_dark_green:
+        lw $v0, GREEN_VIRUS         # Return dark green color
+        j grvc_end
+    return_dark_blue:
+        lw $v0, BLUE_VIRUS          # Return dark blue color
+        j grvc_end
+    grvc_end:
+        jr $ra
+
+
+##############################################################################
+# Function to draw viruses
+# Assumption: There's nothing on the grid right now
+draw_viruses:
+    STORE_TO_STACK($ra)
+    li $t5, 0                                           # $t5 = loop counter
+    lw $t6, VIRUS_COUNT                                 # $t6 = number of viruses
+    dv_loop:
+        dv_generate_addr_loop:
+            # Generate random X offset for the new virus
+            li $v0, 42                                  # syscall 42: generate random number
+            li $a0, 0                                   # $a0 = lower bound of the random number
+            lw $a1, POSSIBLE_VIRUS_POSITION_WIDTH       # $a1 = upper bound of the random number
+            syscall
+            move $t0, $a0                               # $t0 = random X offset
+            sll $t0, $t0, 2                             # $t0 = random X offset in pixels
+            # Generate random Y offset for the new virus
+            li $v0, 42                                  # syscall 42: generate random number
+            li $a0, 0                                   # $a0 = lower bound of the random number
+            lw $a1, POSSIBLE_VIRUS_POSITION_HEIGHT      # $a1 = upper bound of the random number
+            syscall
+            move $t1, $a0                               # $t1 = random Y offset
+            sll $t1, $t1, 7                             # $t1 = random Y offset in pixels
+            # Calculate the address of the new virus
+            lw $t2, ADDR_VIRUS_STARTING_POINT           # $t2 = starting address of the virus
+            add $t2, $t2, $t0
+            add $t2, $t2, $t1                           # $t2 = address of the new virus
+            # Check if the new address is not occupied
+            lw $t3, 0($t2)                              # $t3 = color of the new address
+            lw $t4, BLACK                               # $t4 = black
+            bne $t3, $t4, dv_generate_addr_loop         # Check if the new address is occupied
+            # The new address is not occupied, proceed to draw the virus
+        # Generate random color for the new virus
+        jal generate_random_virus_color
+        move $t3, $v0                               # $t3 = random virus color
+        # Draw the new virus
+        sw $t3, 0($t2)
+        # Repeat until the number of viruses is reached
+        addi $t5, $t5, 1                            # Increment the loop counter
+        bne $t5, $t6, dv_loop                       # Repeat until the number of viruses is reached
+    dv_end:
+        RESTORE_FROM_STACK($ra)
+        jr $ra
