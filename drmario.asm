@@ -40,10 +40,10 @@ ADDR_KBRD:
     .word 0xffff0000
 RED:
     .word 0xff0000
+GREEN:
+    .word 0x00ff00
 BLUE:
     .word 0x0000ff
-YELLOW:
-    .word 0xffff00
 WHITE:
     .word 0xffffff
 BLACK:
@@ -694,8 +694,8 @@ generate_random_color:
     syscall
 
     beq $a0, 0, return_red          # Check if the random number is 0
-    beq $a0, 1, return_blue         # Check if the random number is 1
-    beq $a0, 2, return_yellow       # Check if the random number is 2
+    beq $a0, 1, return_green        # Check if the random number is 1
+    beq $a0, 2, return_blue         # Check if the random number is 2
     lw $v0, WHITE                   # Return white color
 
     j grc_end
@@ -704,12 +704,12 @@ generate_random_color:
         lw $v0, RED                 # Return red color
         j grc_end
 
-    return_blue:
-        lw $v0, BLUE                # Return blue color
+    return_green:
+        lw $v0, GREEN               # Return green color
         j grc_end
 
-    return_yellow:
-        lw $v0, YELLOW              # Return yellow color
+    return_blue:
+        lw $v0, BLUE                # Return blue color
         j grc_end
 
     grc_end:
