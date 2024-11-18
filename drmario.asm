@@ -517,12 +517,12 @@ calculate_pixel_address:
     # Save return address
     STORE_TO_STACK($ra)
 
-    li $t1, 0         # Set $t1 to 0
+    li $t1, 0                   # t1 = 0
     # Calculate offset: y * 128 + x * 4
-    sll $a2, $a2, 2   # x * 4
-    sll $a3, $a3, 7   # y * 128
-    add $t1, $t1, $a2 # Add x offset
-    add $t1, $t1, $a3 # Add y offset
+    sll $a2, $a2, 2             # $a2 *= 4
+    sll $a3, $a3, 7             # $a3 *= 128
+    add $t1, $t1, $a2           # Add x offset
+    add $t1, $t1, $a3           # Add y offset
 
     # Calculate final address
     lw $v0, ADDR_DSPL
@@ -539,15 +539,15 @@ calculate_pixel_address:
 # Parameters: 
 # $a3 = Address of the top left of the capsule 2x2 box
 init_capsule_state:
-    move $s0, $a3                  # Store the initial address to $s0
-    la $t0, CURR_CAPSULE_STATE      # Load base address
+    move $s0, $a3                   # $s0 = the initial address of the capsule block from $a3
+    la $t0, CURR_CAPSULE_STATE      # $t0 = base address
 
     # Initialize all positions with colors
-    lw $t1, BLACK              # Default color (or any other default)
-    sw $t1, 0($t0)      # Store in top position
-    sw $t1, 4($t0)   # Store in bottom position
-    sw $t1, 8($t0)     # Store in left position
-    sw $t1, 12($t0)    # Store in right position
+    lw $t1, BLACK                   # Default color (or any other default)
+    sw $t1, 0($t0)                  # Store in top position
+    sw $t1, 4($t0)                  # Store in bottom position
+    sw $t1, 8($t0)                  # Store in left position
+    sw $t1, 12($t0)                 # Store in right position
 
     jr $ra
 
@@ -558,9 +558,9 @@ init_capsule_state:
 # $a0 - position offset (0, 4, 8, or 12)
 # $a1 - color to set
 set_capsule_color:
-    la $t0, CURR_CAPSULE_STATE
-    add $t0, $t0, $a0         # Add offset to base address
-    sw $a1, 0($t0)             # Store color at position
+    la $t0, CURR_CAPSULE_STATE      # $t0 = base address
+    add $t0, $t0, $a0               # Add offset to base address
+    sw $a1, 0($t0)                  # Store color at position
     jr $ra
 
 
@@ -571,9 +571,9 @@ set_capsule_color:
 # Returns:
 # $v0 - color at position
 get_capsule_color:
-    la $t0, CURR_CAPSULE_STATE
-    add $t0, $t0, $a0         # Add offset to base address
-    lw $v0, 0($t0)             # Load color from position
+    la $t0, CURR_CAPSULE_STATE      # $t0 = base address
+    add $t0, $t0, $a0               # Add offset to base address
+    lw $v0, 0($t0)                  # Load color from position
     jr $ra
 
 
@@ -584,22 +584,22 @@ generate_random_capsule_colors:
     STORE_TO_STACK($ra)
 
     # Generate first random color
-    jal generate_random_color
-    move $t2, $v0             # Save first color
+    jal generate_random_color           # Generate random color
+    move $t2, $v0                       # $t2 = first color
 
     # Generate second random color
-    jal generate_random_color
-    move $t3, $v0             # Save second color
+    jal generate_random_color           # Generate random color
+    move $t3, $v0                       # $t3 = second color
 
     # Set top color
-    li $a0, 0
-    move $a1, $t2
-    jal set_capsule_color
+    li $a0, 0                           # $a0 = position offset for top color
+    move $a1, $t2                       # $a1 = first random color
+    jal set_capsule_color               # Set top color
 
     # Set bottom color
-    li $a0, 8
-    move $a1, $t3
-    jal set_capsule_color
+    li $a0, 8                           # $a0 = position offset for bottom color
+    move $a1, $t3                       # $a1 = second random color
+    jal set_capsule_color               # Set bottom color
 
     # Restore return address
     RESTORE_FROM_STACK($ra)
@@ -639,21 +639,21 @@ draw_capsule:
 # The location of the capsule is stored in $s0
 remove_capsule:
     STORE_TO_STACK($ra)
-    move $t7, $s0            # Set the starting address for the capsule stored in $s0
-    lw $t8, BLACK           # Set the color to black
+    move $t7, $s0               # t7 = Starting address for the capsule stored in $s0
+    lw $t8, BLACK               # t8 = black color
 
-    jal get_pattern
-    beq $v0, 1, rc_pattern_1
-    j rc_pattern_2
+    jal get_pattern             # Get the pattern of the current capsule block
+    beq $v0, 1, rc_pattern_1    # Check if the pattern is 1
+    j rc_pattern_2              # The pattern is 2
 
     rc_pattern_1:
-        sw $t8, 128($t7)
-        sw $t8, 132($t7)
+        sw $t8, 128($t7)        # Set the bottom left pixel to black
+        sw $t8, 132($t7)        # Set the bottom right pixel to black
         j rc_end
 
     rc_pattern_2:
-        sw $t8, 0($t7)
-        sw $t8, 128($t7)
+        sw $t8, 0($t7)          # Set the top left pixel to black
+        sw $t8, 128($t7)        # Set the bottom left pixel to black
         j rc_end
 
     rc_end:
@@ -667,28 +667,28 @@ remove_capsule:
 # - $v0: The color generated
 generate_random_color:
     # Generate a random number from 0 - 2 inclusive, and put the result in $a0 register
-    li $v0, 42              # syscall 42: generate random number
-    li $a0, 0               # Random number generated from 0
-    li $a1, 3               # to 2 inclusive
+    li $v0, 42                      # syscall 42: generate random number
+    li $a0, 0                       # Random number generated from 0
+    li $a1, 3                       # to 2 inclusive
     syscall
 
-    beq $a0, 0, return_red
-    beq $a0, 1, return_blue
-    beq $a0, 2, return_yellow
-    lw $v0, WHITE
+    beq $a0, 0, return_red          # Check if the random number is 0
+    beq $a0, 1, return_blue         # Check if the random number is 1
+    beq $a0, 2, return_yellow       # Check if the random number is 2
+    lw $v0, WHITE                   # Return white color
 
     j grc_end
 
     return_red:
-        lw $v0, RED
+        lw $v0, RED                 # Return red color
         j grc_end
 
     return_blue:
-        lw $v0, BLUE
+        lw $v0, BLUE                # Return blue color
         j grc_end
 
     return_yellow:
-        lw $v0, YELLOW
+        lw $v0, YELLOW              # Return yellow color
         j grc_end
 
     grc_end:
