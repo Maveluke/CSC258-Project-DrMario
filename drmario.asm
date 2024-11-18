@@ -52,6 +52,10 @@ WHITE:
     .word 0xffffff
 BLACK:
     .word 0x000000
+ADDR_NEXT_CAPSULE:
+    .word 0x100084b0
+ADDR_START_CAPSULE:
+    .word 0x100086A0
 VIRUS_COUNT:
     .word 4
 ADDR_VIRUS_STARTING_POINT:
@@ -71,6 +75,9 @@ BLUE_VIRUS:
 ##############################################################################
 # Mutable Data
 ##############################################################################
+NEXT_CAPSULE_STATE:
+    .space 16
+
 CURR_CAPSULE_STATE:
     .space 16
 
@@ -92,38 +99,34 @@ PREV_BITMAP:
 main:
     # Initialize the game
     jal clear_screen
-
     jal draw_bottle
 
     # Initialize the viruses
     lw $s1, VIRUS_COUNT         # $s1 = initial number of viruses
     jal draw_viruses            # Draw the viruses
 
-    # Set the initial capsule location
-    li $a2, 12  # X coordinate
-    li $a3, 9   # Y coordinate
-    jal calculate_pixel_address
-    move $a3, $v0
-
+    # Initialize the next capsule state
+    lw $a3, ADDR_NEXT_CAPSULE
     # Draw the initial capsule
     jal init_capsule_state
     jal generate_random_capsule_colors
-    jal draw_capsule
+    jal draw_next_capsule
 
 
 game_loop:
-    # Draw new capsule
+    # Draw new capsule from the next capsule
     # Initialize the new capsule
-    li $a2, 8  # X coordinate
-    li $a3, 13   # Y coordinate
-    jal calculate_pixel_address
-    move $a3, $v0
-    
+    jal set_new_capsule
+    jal draw_capsule
+
+    # Check if the new capsule can move down
+    beq $v0, 1, game_end
+
+    # Generate the next capsule state
     jal init_capsule_state
     jal generate_random_capsule_colors
-    jal draw_capsule
-    beq $v0, 1, game_end
-    
+    jal draw_next_capsule
+
     gl_after_generate:
     # 1a. Check if key has been pressed
     lw $t0, ADDR_KBRD                   # $t0 = base address for keyboard
@@ -163,6 +166,10 @@ game_loop:
     j gl_after_generate
     # 5. Go back to Step 1
     generate_new_capsule:
+        li $a0, 8
+        li $a1, 27
+        li $a2, 2
+        jal remove_consecutives_v
         j game_loop
 game_end:
     li $v0, 10                  # Terminate the program gracefully
@@ -430,6 +437,60 @@ draw_horizontal_line:
     jr $ra
 
 
+##############################################################################
+# Function to remove consecutive lines
+# Assumption: The lines to be removed are consecutive
+# Parameters:
+# $a0 = X coordinate of the starting point
+# $a1 = Y coordinate of the starting point
+# $a2 = length of the line
+remove_consecutives_v:
+    STORE_TO_STACK($ra)
+
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    li $a3, 0x888888
+    jal draw_vertical_line
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    STORE_TO_STACK($a0)
+    li $v0, 32
+    li $a0, 50
+    syscall
+    RESTORE_FROM_STACK($a0)
+
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    li $a3, 0xaaaaaa
+    jal draw_vertical_line
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    STORE_TO_STACK($a0)
+    li $v0, 32
+    li $a0, 50
+    syscall
+    RESTORE_FROM_STACK($a0)
+
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    li $a3, 0x000000
+    jal draw_vertical_line
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+##############################################################################
+# Function to draw the bottle
 draw_bottle:
     # Save the return address $ra
     STORE_TO_STACK($ra)
@@ -571,11 +632,9 @@ calculate_pixel_address:
 ##############################################################################
 # Function to initialize the capsule state
 # Assumption: The capsule inside the capsule block are fit into empty space in the bitmap
-# Parameters: 
-# $a3 = Address of the top left of the capsule 2x2 box
+# Registers used: $t0, $t1
 init_capsule_state:
-    move $s0, $a3                   # $s0 = the initial address of the capsule block from $a3
-    la $t0, CURR_CAPSULE_STATE      # $t0 = base address
+    la $t0, NEXT_CAPSULE_STATE      # $t0 = base address
 
     # Initialize all positions with colors
     lw $t1, BLACK                   # Default color (or any other default)
@@ -592,8 +651,9 @@ init_capsule_state:
 # Parameters:
 # $a0 - position offset (0, 4, 8, or 12)
 # $a1 - color to set
+# Registers used: $a0, $a1, $t0
 set_capsule_color:
-    la $t0, CURR_CAPSULE_STATE      # $t0 = base address
+    la $t0, NEXT_CAPSULE_STATE      # $t0 = base address
     add $t0, $t0, $a0               # Add offset to base address
     sw $a1, 0($t0)                  # Store color at position
     jr $ra
@@ -644,8 +704,9 @@ generate_random_capsule_colors:
 ##############################################################################
 # Function to draw a capsule on the display
 # The location of the capsule is stored in $s0
-# The color of the 2x2 box for the capsule is stored in CURR_CAPSULE_STATE
+# The color of the 2x2 box for the capsule is stored in curr_capsule_state
 # Return value: $v0 = 1 if can't add new capsule, $v0 = 0 otherwise
+# Registers used: $v0, $t0, $t1, $t2, $t3, $t4, $t5, $t9, $s0
 draw_capsule:
     STORE_TO_STACK($ra)
     move $t0, $s0                   # Set the starting address for the capsule stored in $s0
@@ -660,16 +721,16 @@ draw_capsule:
     lw $t3, 4($t1)                  # Set the top right color
     lw $t4, 8($t1)                  # Set the bottom left color
     lw $t5, 12($t1)                 # Set the bottow right color
-    beq $v0, 1, draw_pattern_1      # Check if the pattern is 1
-    j draw_pattern_2                # The pattern is 2
+    beq $v0, 1, dc_draw_pattern_1   # Check if the pattern is 1
+    j dc_draw_pattern_2             # The pattern is 2
 
-    # Start drawing
-    draw_pattern_1:
+    # start drawing
+    dc_draw_pattern_1:
         sw $t4, 128($t0)            # Draw the bottom left pixel
         sw $t5, 132($t0)            # Draw the bottom right pixel
         li $v0, 0                   # Successfully added new capsule
         j dc_end
-    draw_pattern_2:
+    dc_draw_pattern_2:
         sw $t2, 0($t0)              # Draw the top left pixel
         sw $t4, 128($t0)            # Draw the bottom left pixel
         li $v0, 0                   # Successfully added new capsule
@@ -683,11 +744,11 @@ draw_capsule:
 
 
 ##############################################################################
-# Function to remove the capsule from the display
-# The location of the capsule is stored in $s0
+# function to remove the capsule from the display
+# the location of the capsule is stored in $s0
 remove_capsule:
     STORE_TO_STACK($ra)
-    move $t7, $s0               # t7 = Starting address for the capsule stored in $s0
+    move $t7, $s0               # t7 = starting address for the capsule stored in $s0
     lw $t8, BLACK               # t8 = black color
 
     jal get_pattern             # Get the pattern of the current capsule block
@@ -708,6 +769,50 @@ remove_capsule:
         RESTORE_FROM_STACK($ra)
         jr $ra
 
+
+##############################################################################
+# Function to draw a capsule on the display
+# The location of the capsule is stored in $s0
+# The color of the 2x2 box for the capsule is stored in NEXT_CAPSULE_STATE
+draw_next_capsule:
+    STORE_TO_STACK($ra)
+
+    lw $t0, ADDR_NEXT_CAPSULE       # Set the starting address for the capsule stored in $s0
+    la $t1, NEXT_CAPSULE_STATE      # Set the current color palette
+    lw $t2, 0($t1)                  # Set the top left color
+    lw $t3, 4($t1)                  # Set the top right color
+    lw $t4, 8($t1)                  # Set the bottom left color
+    lw $t5, 12($t1)                 # Set the bottow right color
+
+    sw $t2, 0($t0)                  # Draw the bottom left pixel
+    sw $t3, 4($t0)                  # Draw the bottom right pixel
+    sw $t4, 128($t0)                # Draw the top left pixel
+    sw $t5, 132($t0)                # Draw the bottom left pixel
+
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+
+##############################################################################
+# Function to set a new capsule to the next capsule state
+# Registers used: s0, t0, t1, t2, t3
+set_new_capsule:
+    # Set $s0 to start address
+    lw $s0, ADDR_START_CAPSULE
+
+    # Set the new capsule color
+    la $t0, NEXT_CAPSULE_STATE
+    la $t3, CURR_CAPSULE_STATE
+    lw $t2, 0($t0)
+    sw $t2, 0($t3)
+    lw $t2, 4($t0)
+    sw $t2, 4($t3)
+    lw $t2, 8($t0)
+    sw $t2, 8($t3)
+    lw $t2, 12($t0)
+    sw $t2, 12($t3)
+        
+    jr $ra
 
 ##############################################################################
 # Function to return random color
