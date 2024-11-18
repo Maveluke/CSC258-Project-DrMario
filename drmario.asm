@@ -133,8 +133,9 @@ game_loop:
 	li $a0, 16
 	syscall
 
+    j gl_after_generate
     # 5. Go back to Step 1
-    j game_loop
+    # j game_loop
 game_end:
     li $v0, 10                  # Terminate the program gracefully
     syscall
@@ -199,7 +200,9 @@ move_left:
     j ml_end                            # The capsule can't move left
 
     ml_can_move:
+        jal remove_capsule
         addi $s0, $s0, -4               # Move the capsule block left by 1 pixel
+        jal draw_capsule
     ml_end:
         # Return to the calling program
         jr $ra
@@ -237,7 +240,9 @@ move_right:
         bne $t1, $t9, mr_end            # Check if the new address of the bottom left pixel is occupied (isn't black)
         j mr_can_move                   # The bottom left pixel of the capsule block also can move right
     mr_can_move:
+        jal remove_capsule
         addi $s0, $s0, 4                # Move the capsule block right by 1 pixel
+        jal draw_capsule
     mr_end:
         # Return to the calling program
         jr $ra
@@ -267,7 +272,9 @@ move_down:
     j md_can_move                       # The bottom right pixel of the capsule block also can move down
 
     md_can_move:
+        jal remove_capsule
         addi $s0, $s0, 128              # Move the capsule block down by 1 pixel
+        jal draw_capsule
     md_end:
         # Return to the calling program
         jr $ra
@@ -297,6 +304,7 @@ rotate:
         j r_end                         # The capsule block can't rotate
     r_can_rotate_1:
         # Rotate the capsule block from pattern 1 to pattern 2
+        jal remove_capsule
         addi $t0, $s0, 0                # $t0 = address of the top left pixel of the capsule block
         addi $t1, $s0, 128              # $t1 = address of the bottom left pixel of the capsule block
         lw $t2, 0($t1)                  # $t2 = color of the bottom left pixel of the capsule block
@@ -304,9 +312,11 @@ rotate:
         lw $t4, 0($t3)                  # $t4 = color of the bottom right pixel of the capsule block
         sw $t2, 0($t0)                  # Move the color of the bottom left pixel to the top left pixel
         sw $t4, 0($t1)                  # Move the color of the bottom right pixel to the bottom left pixel
+        jal draw_capsule
         j r_end
     r_can_rotate_2:
         # Rotate the capsule block from pattern 2 to pattern 1
+        jal remove_capsule
         addi $t0, $s0, 0                # $t0 = address of the top left pixel of the capsule block
         lw $t1, 0($t0)                  # $t1 = color of the top left pixel of the capsule block
         addi $t2, $s0, 128              # $t2 = address of the bottom left pixel of the capsule block
@@ -314,6 +324,7 @@ rotate:
         addi $t4, $s0, 132              # $t4 = address of the bottom right pixel of the capsule block
         sw $t1, 0($t2)                  # Move the color of the top left pixel to the bottom left pixel
         sw $t3, 0($t4)                  # Move the color of the bottom left pixel to the bottom right pixel
+        jal draw_capsule
         j r_end
     r_end:
         # Return to the calling program
@@ -332,7 +343,7 @@ draw_vertical_line:
     lw $t0, ADDR_DSPL                   # $t0 = base address for display
     sll $a0, $a0, 2                     # Calculate the X offset to add to $t0 (multiply $a0 by 4)
     sll $a1, $a1, 7                     # Calculate the Y offset to add to $t0 (multiply $a1 by 128)
-    add $t0, $t0, $a0                   # Add the X offset to $t0
+    add $t0, $t0, $a0                   # Add the X offset to $t0.
     add $t0, $t0, $a1                   # Add the Y offset to $t0
     # $t0 now contains the address of the starting point
     # Calculate the address of the ending point
@@ -346,7 +357,6 @@ draw_vertical_line:
         bne $t0, $t1, dvl_line_start    # Repeat until the ending point is reached
     # Return to the calling program
     jr $ra
-
 
 
 ##############################################################################
@@ -513,6 +523,7 @@ calculate_pixel_address:
     RESTORE_FROM_STACK($ra)
     jr $ra
 
+
 ##############################################################################
 # Function to initialize the capsule state
 # Parameters: 
@@ -530,6 +541,7 @@ init_capsule_state:
 
     jr $ra
 
+
 ##############################################################################
 # Function to set color at specific position
 # Parameters:
@@ -540,6 +552,7 @@ set_capsule_color:
     add $t0, $t0, $a0         # Add offset to base address
     sw $a1, 0($t0)             # Store color at position
     jr $ra
+
 
 ##############################################################################
 # Function to get color at specific position
@@ -552,6 +565,7 @@ get_capsule_color:
     add $t0, $t0, $a0         # Add offset to base address
     lw $v0, 0($t0)             # Load color from position
     jr $ra
+
 
 ##############################################################################
 # Function to randomly set two opposite colors
@@ -583,6 +597,7 @@ generate_random_capsule_colors:
     RESTORE_FROM_STACK($ra)
     jr $ra
 
+
 ##############################################################################
 # Function to draw a capsule on the display
 # The location of the capsule is stored in $s0
@@ -602,6 +617,34 @@ draw_capsule:
     sw $t5, 132($t0)
     
     jr $ra
+
+
+##############################################################################
+# Function to remove the capsule from the display
+# The location of the capsule is stored in $s0
+remove_capsule:
+    STORE_TO_STACK($ra)
+    move $t0, $s0            # Set the starting address for the capsule stored in $s0
+    lw $t1, BLACK           # Set the color to black
+
+    jal get_pattern
+    beq $v0, 1, rc_pattern_1
+    j rc_pattern_2
+
+    rc_pattern_1:
+        sw $t1, 128($t0)
+        sw $t1, 132($t0)
+        j rc_end
+
+    rc_pattern_2:
+        sw $t1, 0($t0)
+        sw $t1, 128($t0)
+        j rc_end
+
+    rc_end:
+        RESTORE_FROM_STACK($ra)
+        jr $ra
+
 
 ##############################################################################
 # Function to return random color
@@ -635,3 +678,4 @@ generate_random_color:
 
     grc_end:
         jr $ra
+
