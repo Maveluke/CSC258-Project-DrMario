@@ -38,12 +38,16 @@ ADDR_DSPL:
 # The address of the keyboard. Don't forget to connect it!
 ADDR_KBRD:
     .word 0xffff0000
+GRID_WIDTH:
+    .word 11
+GRID_HEIGHT:
+    .word 16
 RED:
     .word 0xff0000
+GREEN:
+    .word 0x00ff00
 BLUE:
     .word 0x0000ff
-YELLOW:
-    .word 0xffff00
 WHITE:
     .word 0xffffff
 BLACK:
@@ -471,12 +475,13 @@ draw_bottle:
     STORE_TO_STACK($ra)
     
     # Draw the bottle
-    lw $t0, ADDR_DSPL       # $t0 = base address for display
+    lw $s6, GRID_WIDTH              # $s6 = width of the inside of the bottle
+    lw $s7, GRID_HEIGHT             # $s7 = height of the inside of the bottle
     # Draw the top of the bottle
-    li $a0, 6               # $a3 = Starting X coordinate
-    li $a1, 9               # $a2 = Starting Y coordinate
-    li $a2, 4               # $a2 = Length of the line
-    lw $a3, WHITE           # $a3 = Colour
+    li $a0, 6                       # $a3 = Starting X coordinate
+    li $a1, 9                       # $a2 = Starting Y coordinate
+    li $a2, 4                       # $a2 = Length of the line
+    lw $a3, WHITE                   # $a3 = Colour
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
@@ -487,10 +492,10 @@ draw_bottle:
     RESTORE_FROM_STACK($a1)
     RESTORE_FROM_STACK($a0)
 
-    li $a0, 10              # $a3 = Starting X coordinate
-    li $a1, 9               # $a2 = Starting Y coordinate
-    li $a2, 4               # $a2 = Length of the line
-    lw $a3, WHITE           # $a3 = Colour
+    li $a0, 10                      # $a3 = Starting X coordinate
+    li $a1, 9                       # $a2 = Starting Y coordinate
+    li $a2, 4                       # $a2 = Length of the line
+    lw $a3, WHITE                   # $a3 = Colour
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
@@ -501,10 +506,10 @@ draw_bottle:
     RESTORE_FROM_STACK($a1)
     RESTORE_FROM_STACK($a0)
 
-    li $a0, 2               # $a3 = Starting X coordinate
-    li $a1, 12               # $a2 = Starting Y coordinate
-    li $a2, 5               # $a2 = Length of the line
-    lw $a3, WHITE           # $a3 = Colour
+    li $a0, 2                       # $a3 = Starting X coordinate
+    li $a1, 12                      # $a2 = Starting Y coordinate
+    li $a2, 5                       # $a2 = Length of the line
+    lw $a3, WHITE                   # $a3 = Colour
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
@@ -515,10 +520,10 @@ draw_bottle:
     RESTORE_FROM_STACK($a1)
     RESTORE_FROM_STACK($a0)
 
-    li $a0, 10               # $a3 = Starting X coordinate
-    li $a1, 12               # $a2 = Starting Y coordinate
-    li $a2, 5               # $a2 = Length of the line
-    lw $a3, WHITE           # $a3 = Colour
+    li $a0, 10                      # $a3 = Starting X coordinate
+    li $a1, 12                      # $a2 = Starting Y coordinate
+    li $a2, 5                       # $a2 = Length of the line
+    lw $a3, WHITE                   # $a3 = Colour
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
@@ -530,10 +535,10 @@ draw_bottle:
     RESTORE_FROM_STACK($a0)
 
     # Draw the bottom of the bottle
-    li $a0, 2              # $a3 = Starting X coordinate
-    li $a1, 12               # $a2 = Starting Y coordinate
-    li $a2, 18               # $a2 = Length of the line
-    lw $a3, WHITE           # $a3 = Colour
+    li $a0, 2                       # $a3 = Starting X coordinate
+    li $a1, 12                      # $a2 = Starting Y coordinate
+    addi $a2, $s7, 2                # $a2 = Length of the line (height + 2)
+    lw $a3, WHITE                   # $a3 = Colour
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
@@ -544,10 +549,10 @@ draw_bottle:
     RESTORE_FROM_STACK($a1)
     RESTORE_FROM_STACK($a0)
 
-    li $a0, 14              # $a3 = Starting X coordinate
-    li $a1, 12               # $a2 = Starting Y coordinate
-    li $a2, 18               # $a2 = Length of the line
-    lw $a3, WHITE           # $a3 = Colour
+    li $a0, 14                      # $a3 = Starting X coordinate
+    li $a1, 12                      # $a2 = Starting Y coordinate
+    addi, $a2, $s7, 2               # $a2 = Length of the line (height + 2)
+    lw $a3, WHITE                   # $a3 = Colour
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
@@ -558,10 +563,10 @@ draw_bottle:
     RESTORE_FROM_STACK($a1)
     RESTORE_FROM_STACK($a0)
 
-    li $a0, 2               # $a3 = Starting X coordinate
-    li $a1, 29               # $a2 = Starting Y coordinate
-    li $a2, 13               # $a2 = Length of the line
-    lw $a3, WHITE           # $a3 = Colour
+    li $a0, 2                       # $a3 = Starting X coordinate
+    li $a1, 29                      # $a2 = Starting Y coordinate
+    addi $a2, $s6, 2                # $a2 = Length of the line (width + 2)
+    lw $a3, WHITE                   # $a3 = Colour
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
@@ -799,8 +804,8 @@ generate_random_color:
     syscall
 
     beq $a0, 0, return_red          # Check if the random number is 0
-    beq $a0, 1, return_blue         # Check if the random number is 1
-    beq $a0, 2, return_yellow       # Check if the random number is 2
+    beq $a0, 1, return_green        # Check if the random number is 1
+    beq $a0, 2, return_blue         # Check if the random number is 2
     lw $v0, WHITE                   # Return white color
 
     j grc_end
@@ -809,12 +814,12 @@ generate_random_color:
         lw $v0, RED                 # Return red color
         j grc_end
 
-    return_blue:
-        lw $v0, BLUE                # Return blue color
+    return_green:
+        lw $v0, GREEN               # Return green color
         j grc_end
 
-    return_yellow:
-        lw $v0, YELLOW              # Return yellow color
+    return_blue:
+        lw $v0, BLUE                # Return blue color
         j grc_end
 
     grc_end:
