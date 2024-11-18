@@ -134,6 +134,9 @@ game_loop:
 	syscall
 
     # 5. Go back to Step 1
+    li $v0, 32
+    li $a0, 10000
+    syscall
     j game_loop
 game_end:
     li $v0, 10                  # Terminate the program gracefully
@@ -304,23 +307,25 @@ rotate:
         j r_end                         # The capsule block can't rotate
     r_can_rotate_1:
         # Rotate the capsule block from pattern 1 to pattern 2
-        addi $t0, $s0, 0                # $t0 = address of the top left pixel of the capsule block
-        addi $t1, $s0, 128              # $t1 = address of the bottom left pixel of the capsule block
+        lw $t0, CURR_CAPSULE_STATE      # $t0 = address of the top left pixel of the capsule block
+        addi $t1, $t0, 8                # $t1 = address of the bottom left pixel of the capsule block
         lw $t2, 0($t1)                  # $t2 = color of the bottom left pixel of the capsule block
-        addi $t3, $s0, 132              # $t2 = address of the bottom right pixel of the capsule block
+        addi $t3, $t0, 12               # $t2 = address of the bottom right pixel of the capsule block
         lw $t4, 0($t3)                  # $t4 = color of the bottom right pixel of the capsule block
         sw $t2, 0($t0)                  # Move the color of the bottom left pixel to the top left pixel
         sw $t4, 0($t1)                  # Move the color of the bottom right pixel to the bottom left pixel
+        sw $t9, 0($t3)                  # Set the bottom right pixel to black
         j r_end
     r_can_rotate_2:
         # Rotate the capsule block from pattern 2 to pattern 1
-        addi $t0, $s0, 0                # $t0 = address of the top left pixel of the capsule block
+        lw $t0, CURR_CAPSULE_STATE      # $t0 = address of the top left pixel of the capsule block
         lw $t1, 0($t0)                  # $t1 = color of the top left pixel of the capsule block
-        addi $t2, $s0, 128              # $t2 = address of the bottom left pixel of the capsule block
+        addi $t2, $t0, 8                # $t2 = address of the bottom left pixel of the capsule block
         lw $t3, 0($t2)                  # $t3 = color of the bottom left pixel of the capsule block
-        addi $t4, $s0, 132              # $t4 = address of the bottom right pixel of the capsule block
+        addi $t4, $t0, 12               # $t4 = address of the bottom right pixel of the capsule block
         sw $t1, 0($t2)                  # Move the color of the top left pixel to the bottom left pixel
         sw $t3, 0($t4)                  # Move the color of the bottom left pixel to the bottom right pixel
+        sw $t9, 0($t0)                  # Set the top left pixel to black
         j r_end
     r_end:
         # Return to the calling program
