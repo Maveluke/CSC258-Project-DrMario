@@ -145,15 +145,15 @@ game_end:
 # Function to clear the screen
 # Clear screen to black
 clear_screen:
-    lw $t0, ADDR_DSPL    # Load base address
-    li $t1, 4096              # 64 * 64 pixels
-    lw $t2, BLACK             # Load black color
+    lw $t0, ADDR_DSPL           # Load base address
+    li $t1, 4096                # 64 * 64 pixels
+    lw $t2, BLACK               # Load black color
 
     clear_loop:
-        sw $t2, 0($t0)            # Store black color
-        addi $t0, $t0, 4         # Next pixel
-        addi $t1, $t1, -1        # Decrement counter
-        bnez $t1, clear_loop     # Continue if not done
+        sw $t2, 0($t0)          # Store black color
+        addi $t0, $t0, 4        # Next pixel
+        addi $t1, $t1, -1       # Decrement counter
+        bnez $t1, clear_loop    # Continue if not done
         jr $ra
 
 
@@ -166,14 +166,14 @@ clear_screen:
 #            1 0
 # Return value: $v0 = 1 (pattern 1) or $v0 = 2 (pattern 2)
 get_pattern:
-    lw $t1, 0($s0)                  # $t1 = color of the top left pixel
-    beq $t1, 0, pattern_1           # Check if the top left pixel is black
-    j pattern_2                     # The top left pixel is colored
+    lw $t1, 0($s0)              # $t1 = color of the top left pixel
+    beq $t1, 0, pattern_1       # Check if the top left pixel is black
+    j pattern_2                 # The top left pixel is colored
     pattern_1:
-        li $v0, 1                   # Return pattern 1
+        li $v0, 1               # Return pattern 1
         jr $ra
     pattern_2:
-        li $v0, 2                   # Return pattern 2
+        li $v0, 2               # Return pattern 2
         jr $ra
 
 
@@ -433,7 +433,7 @@ draw_bottle:
     RESTORE_FROM_STACK($a0)
 
     li $a0, 2               # $a3 = Starting X coordinate
-    li $a1, 12               # $a2 = Starting Y coordinate
+    li $a1, 12              # $a2 = Starting Y coordinate
     li $a2, 5               # $a2 = Length of the line
     lw $a3, WHITE           # $a3 = Colour
     STORE_TO_STACK($a0)
@@ -446,8 +446,8 @@ draw_bottle:
     RESTORE_FROM_STACK($a1)
     RESTORE_FROM_STACK($a0)
 
-    li $a0, 10               # $a3 = Starting X coordinate
-    li $a1, 12               # $a2 = Starting Y coordinate
+    li $a0, 10              # $a3 = Starting X coordinate
+    li $a1, 12              # $a2 = Starting Y coordinate
     li $a2, 5               # $a2 = Length of the line
     lw $a3, WHITE           # $a3 = Colour
     STORE_TO_STACK($a0)
@@ -461,9 +461,9 @@ draw_bottle:
     RESTORE_FROM_STACK($a0)
 
     # Draw the bottom of the bottle
-    li $a0, 2              # $a3 = Starting X coordinate
-    li $a1, 12               # $a2 = Starting Y coordinate
-    li $a2, 18               # $a2 = Length of the line
+    li $a0, 2               # $a3 = Starting X coordinate
+    li $a1, 12              # $a2 = Starting Y coordinate
+    li $a2, 18              # $a2 = Length of the line
     lw $a3, WHITE           # $a3 = Colour
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
@@ -476,8 +476,8 @@ draw_bottle:
     RESTORE_FROM_STACK($a0)
 
     li $a0, 14              # $a3 = Starting X coordinate
-    li $a1, 12               # $a2 = Starting Y coordinate
-    li $a2, 18               # $a2 = Length of the line
+    li $a1, 12              # $a2 = Starting Y coordinate
+    li $a2, 18              # $a2 = Length of the line
     lw $a3, WHITE           # $a3 = Colour
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
@@ -490,8 +490,8 @@ draw_bottle:
     RESTORE_FROM_STACK($a0)
 
     li $a0, 2               # $a3 = Starting X coordinate
-    li $a1, 29               # $a2 = Starting Y coordinate
-    li $a2, 13               # $a2 = Length of the line
+    li $a1, 29              # $a2 = Starting Y coordinate
+    li $a2, 13              # $a2 = Length of the line
     lw $a3, WHITE           # $a3 = Colour
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
@@ -540,15 +540,15 @@ calculate_pixel_address:
 # Parameters: 
 # $a3 = Address of the top left of the capsule 2x2 box
 init_capsule_state:
-    move $s0, $a3                  # Store the initial address to $s0
+    move $s0, $a3                   # Store the initial address to $s0
     la $t0, CURR_CAPSULE_STATE      # Load base address
 
     # Initialize all positions with colors
-    lw $t1, BLACK              # Default color (or any other default)
-    sw $t1, 0($t0)      # Store in top position
-    sw $t1, 4($t0)   # Store in bottom position
-    sw $t1, 8($t0)     # Store in left position
-    sw $t1, 12($t0)    # Store in right position
+    lw $t1, BLACK                   # Default color (or any other default)
+    sw $t1, 0($t0)                  # Store in top position
+    sw $t1, 4($t0)                  # Store in bottom position
+    sw $t1, 8($t0)                  # Store in left position
+    sw $t1, 12($t0)                 # Store in right position
 
     jr $ra
 
@@ -560,8 +560,8 @@ init_capsule_state:
 # $a1 - color to set
 set_capsule_color:
     la $t0, CURR_CAPSULE_STATE
-    add $t0, $t0, $a0         # Add offset to base address
-    sw $a1, 0($t0)             # Store color at position
+    add $t0, $t0, $a0               # Add offset to base address
+    sw $a1, 0($t0)                  # Store color at position
     jr $ra
 
 
@@ -573,8 +573,8 @@ set_capsule_color:
 # $v0 - color at position
 get_capsule_color:
     la $t0, CURR_CAPSULE_STATE
-    add $t0, $t0, $a0         # Add offset to base address
-    lw $v0, 0($t0)             # Load color from position
+    add $t0, $t0, $a0               # Add offset to base address
+    lw $v0, 0($t0)                  # Load color from position
     jr $ra
 
 
@@ -586,11 +586,11 @@ generate_random_capsule_colors:
 
     # Generate first random color
     jal generate_random_color
-    move $t2, $v0             # Save first color
+    move $t2, $v0                   # Save first color
 
     # Generate second random color
     jal generate_random_color
-    move $t3, $v0             # Save second color
+    move $t3, $v0                   # Save second color
 
     # Set top color
     li $a0, 0
@@ -633,8 +633,8 @@ draw_capsule:
 # The location of the capsule is stored in $s0
 remove_capsule:
     STORE_TO_STACK($ra)
-    move $t0, $s0            # Set the starting address for the capsule stored in $s0
-    lw $t1, BLACK           # Set the color to black
+    move $t0, $s0                   # Set the starting address for the capsule stored in $s0
+    lw $t1, BLACK                   # Set the color to black
 
     jal get_pattern
     beq $v0, 1, rc_pattern_1
@@ -661,9 +661,9 @@ remove_capsule:
 # - $v0: The color generated
 generate_random_color:
     # Generate a random number from 0 - 2 inclusive, and put the result in $a0 register
-    li $v0, 42              # syscall 42: generate random number
-    li $a0, 0               # Random number generated from 0
-    li $a1, 3               # to 2 inclusive
+    li $v0, 42                  # syscall 42: generate random number
+    li $a0, 0                   # Random number generated from 0
+    li $a1, 3                   # to 2 inclusive
     syscall
 
     beq $a0, 0, return_red
