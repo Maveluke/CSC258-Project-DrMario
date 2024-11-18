@@ -71,6 +71,20 @@ PREV_BITMAP:
     # Run the game.
 main:
     # Initialize the game
+    jal clear_screen
+
+    jal draw_bottle
+
+    # Set the initial capsule location
+    li $a2, 12  # X coordinate
+    li $a3, 9   # Y coordinate
+    jal calculate_pixel_address
+    move $a3, $v0
+
+    jal init_capsule_state
+    jal generate_random_capsule_colors
+    jal draw_capsule
+
 
 game_loop:
     # 1a. Check if key has been pressed
@@ -103,6 +117,9 @@ game_loop:
 	# 2b. Update locations (capsules)
 	# 3. Draw the screen
 	# 4. Sleep
+	li $v0, 32
+	li $a0, 16
+	syscall
 
     # 5. Go back to Step 1
     j game_loop
@@ -303,6 +320,7 @@ draw_vertical_line:
     jr $ra
 
 
+
 ##############################################################################
 # Function to draw a horizontal line on the display
 # Assumption: the line can be drawn within the same row
@@ -332,9 +350,11 @@ draw_horizontal_line:
 
 
 draw_bottle:
+    # Save the return address $ra
+    STORE_TO_STACK($ra)
+    
     # Draw the bottle
     lw $t0, ADDR_DSPL       # $t0 = base address for display
-    lw $t1, WHITE           # $t1 = white
     # Draw the top of the bottle
     li $a0, 6               # $a3 = Starting X coordinate
     li $a1, 9               # $a2 = Starting Y coordinate
