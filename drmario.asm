@@ -87,10 +87,22 @@ main:
 
 
 game_loop:
+    # Draw new capsule
+    # Initialize the new capsule
+    li $a2, 8  # X coordinate
+    li $a3, 13   # Y coordinate
+    jal calculate_pixel_address
+    move $a3, $v0
+    
+    jal init_capsule_state
+    jal generate_random_capsule_colors
+    jal draw_capsule
+    
+    gl_after_generate:
     # 1a. Check if key has been pressed
     lw $t0, ADDR_KBRD                   # $t0 = base address for keyboard
     lw $t1, 0($t0)                      # Load first word from keyboard
-    bne $t1, 1, game_loop               # If the first word is not 1, a key hasn't been pressed
+    bne $t1, 1, gl_after_generate               # If the first word is not 1, a key hasn't been pressed
     # 1b. Check which key has been pressed
     lw $t1, 4($t0)                      # $t1 = key pressed (second word from keyboard)
     beq $t1, 0x71, game_end             # Check if the key is 'q'
@@ -98,7 +110,7 @@ game_loop:
     beq $t1, 0x61, handle_move_left     # Check if the key is 'a'
     beq $t1, 0x73, handle_move_down     # Check if the key is 's'
     beq $t1, 0x64, handle_move_right    # Check if the key is 'd'
-    j game_loop                         # Invalid key pressed, go back to the game loop
+    j gl_after_generate                 # Invalid key pressed, go back to the game loop
     handle_rotate:
         jal rotate
         j after_handling_move
