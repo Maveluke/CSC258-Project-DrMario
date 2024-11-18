@@ -526,8 +526,10 @@ calculate_pixel_address:
     RESTORE_FROM_STACK($ra)
     jr $ra
 
+
 ##############################################################################
 # Function to initialize the capsule state
+# Assumption: The capsule inside the capsule block are fit into empty space in the bitmap
 # Parameters: 
 # $a3 = Address of the top left of the capsule 2x2 box
 init_capsule_state:
@@ -543,6 +545,7 @@ init_capsule_state:
 
     jr $ra
 
+
 ##############################################################################
 # Function to set color at specific position
 # Parameters:
@@ -553,6 +556,7 @@ set_capsule_color:
     add $t0, $t0, $a0         # Add offset to base address
     sw $a1, 0($t0)             # Store color at position
     jr $ra
+
 
 ##############################################################################
 # Function to get color at specific position
@@ -566,10 +570,9 @@ get_capsule_color:
     lw $v0, 0($t0)             # Load color from position
     jr $ra
 
+
 ##############################################################################
-# Function to randomly set two opposite colors
-# Returns:
-# $t2 - left color
+# Function to randomly set two colors at the starting point ($s0)
 generate_random_capsule_colors:
     # Save return address
     STORE_TO_STACK($ra)
@@ -582,12 +585,12 @@ generate_random_capsule_colors:
     jal generate_random_color
     move $t3, $v0             # Save second color
 
-    # Set left color
+    # Set top color
     li $a0, 0
     move $a1, $t2
     jal set_capsule_color
 
-    # Set right color
+    # Set bottom color
     li $a0, 8
     move $a1, $t3
     jal set_capsule_color
@@ -596,12 +599,13 @@ generate_random_capsule_colors:
     RESTORE_FROM_STACK($ra)
     jr $ra
 
+
 ##############################################################################
 # Function to draw a capsule on the display
 # The location of the capsule is stored in $s0
 # The color of the 2x2 box for the capsule is stored in CURR_CAPSULE_STATE
 draw_capsule:
-    move $t0, $s0            # Set the starting address for the capsule stored in $s0
+    move $t0, $s0                   # Set the starting address for the capsule stored in $s0
     la $t1, CURR_CAPSULE_STATE      # Set the current color palette
     lw $t2, 0($t1)                  # Set the top left color
     lw $t3, 4($t1)                  # Set the top right color
