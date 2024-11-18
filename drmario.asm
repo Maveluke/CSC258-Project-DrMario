@@ -141,6 +141,10 @@ game_loop:
     j gl_after_generate
     # 5. Go back to Step 1
     generate_new_capsule:
+        li $a0, 8
+        li $a1, 27
+        li $a2, 2
+        jal remove_consecutives_v
         j game_loop
 game_end:
     li $v0, 10                  # Terminate the program gracefully
@@ -408,6 +412,60 @@ draw_horizontal_line:
     jr $ra
 
 
+##############################################################################
+# Function to remove consecutive lines
+# Assumption: The lines to be removed are consecutive
+# Parameters:
+# $a0 = X coordinate of the starting point
+# $a1 = Y coordinate of the starting point
+# $a2 = length of the line
+remove_consecutives_v:
+    STORE_TO_STACK($ra)
+
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    li $a3, 0x888888
+    jal draw_vertical_line
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    STORE_TO_STACK($a0)
+    li $v0, 32
+    li $a0, 50
+    syscall
+    RESTORE_FROM_STACK($a0)
+
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    li $a3, 0xaaaaaa
+    jal draw_vertical_line
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    STORE_TO_STACK($a0)
+    li $v0, 32
+    li $a0, 50
+    syscall
+    RESTORE_FROM_STACK($a0)
+
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    li $a3, 0x000000
+    jal draw_vertical_line
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+##############################################################################
+# Function to draw the bottle
 draw_bottle:
     # Save the return address $ra
     STORE_TO_STACK($ra)
