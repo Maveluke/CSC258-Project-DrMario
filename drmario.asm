@@ -622,4 +622,4 @@ generate_random_color:
         j grc_end
 
     grc_end:
-        jr $ra
+        jr $ra
