@@ -92,6 +92,9 @@ game_loop:
 	# 2b. Update locations (capsules)
 	# 3. Draw the screen
 	# 4. Sleep
+	li $v0, 32
+	li $a0, 16
+	syscall
 
     # 5. Go back to Step 1
     j game_loop
