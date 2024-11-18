@@ -129,6 +129,22 @@ game_end:
 
 
 ##############################################################################
+# Function to clear the screen
+# Clear screen to black
+clear_screen:
+    lw $t0, ADDR_DSPL    # Load base address
+    li $t1, 4096              # 64 * 64 pixels
+    lw $t2, BLACK             # Load black color
+
+    clear_loop:
+        sw $t2, 0($t0)            # Store black color
+        addi $t0, $t0, 4         # Next pixel
+        addi $t1, $t1, -1        # Decrement counter
+        bnez $t1, clear_loop     # Continue if not done
+        jr $ra
+
+
+##############################################################################
 # Function to return the current capsule pattern (1 or 2)
 # Note: 1 means the pixel is colored, 0 means the pixel is black
 # Pattern 1: 0 0
@@ -259,15 +275,15 @@ rotate:
         # Check if the top left pixel of the capsule block is empty (black)
         addi $t0, $s0, 0                # $t0 = address of the top left pixel of the capsule block
         lw $t1, 0($t0)                  # $t1 = color of the top left pixel of the capsule block
-        beq $t1, $t9, r_can_rotate      # Check if the top left pixel is black
+        beq $t1, $t9, r_can_rotate_1    # Check if the top left pixel is black
         j r_end                         # The capsule block can't rotate
     r_pattern_2:
         # Check if the bottom right pixel of the capsule block is empty (black)
         addi $t0, $s0, 132              # $t0 = address of the bottom right pixel of the capsule block
         lw $t1, 0($t0)                  # $t1 = color of the bottom right pixel of the capsule block
-        beq $t1, $t9, r_can_rotate      # Check if the bottom right pixel is black
+        beq $t1, $t9, r_can_rotate_2    # Check if the bottom right pixel is black
         j r_end                         # The capsule block can't rotate
-    r_can_rotate_pattern_1:
+    r_can_rotate_1:
         # Rotate the capsule block from pattern 1 to pattern 2
         addi $t0, $s0, 0                # $t0 = address of the top left pixel of the capsule block
         addi $t1, $s0, 128              # $t1 = address of the bottom left pixel of the capsule block
@@ -277,7 +293,7 @@ rotate:
         sw $t2, 0($t0)                  # Move the color of the bottom left pixel to the top left pixel
         sw $t4, 0($t1)                  # Move the color of the bottom right pixel to the bottom left pixel
         j r_end
-    r_can_rotate_pattern_2:
+    r_can_rotate_2:
         # Rotate the capsule block from pattern 2 to pattern 1
         addi $t0, $s0, 0                # $t0 = address of the top left pixel of the capsule block
         lw $t1, 0($t0)                  # $t1 = color of the top left pixel of the capsule block
@@ -454,3 +470,156 @@ draw_bottle:
     RESTORE_FROM_STACK($a2)
     RESTORE_FROM_STACK($a1)
     RESTORE_FROM_STACK($a0)
+
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+
+##############################################################################
+# Function to calculate pixel address
+# Parameters:
+# $a2 - x coordinate
+# $a3 - y coordinate
+# Returns:
+# $v0 - pixel address
+calculate_pixel_address:
+    # Save return address
+    STORE_TO_STACK($ra)
+
+    li $t1, 0         # Set $t1 to 0
+    # Calculate offset: y * 128 + x * 4
+    sll $a2, $a2, 2   # x * 4
+    sll $a3, $a3, 7   # y * 128
+    add $t1, $t1, $a2 # Add x offset
+    add $t1, $t1, $a3 # Add y offset
+
+    # Calculate final address
+    lw $v0, ADDR_DSPL
+    add $v0, $v0, $t1
+
+    # Restore return address
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+##############################################################################
+# Function to initialize the capsule state
+# Parameters: 
+# $a3 = Address of the top left of the capsule 2x2 box
+init_capsule_state:
+    move $s0, $a3                  # Store the initial address to $s0
+    la $t0, CURR_CAPSULE_STATE      # Load base address
+
+    # Initialize all positions with colors
+    lw $t1, BLACK              # Default color (or any other default)
+    sw $t1, 0($t0)      # Store in top position
+    sw $t1, 4($t0)   # Store in bottom position
+    sw $t1, 8($t0)     # Store in left position
+    sw $t1, 12($t0)    # Store in right position
+
+    jr $ra
+
+##############################################################################
+# Function to set color at specific position
+# Parameters:
+# $a0 - position offset (0, 4, 8, or 12)
+# $a1 - color to set
+set_capsule_color:
+    la $t0, CURR_CAPSULE_STATE
+    add $t0, $t0, $a0         # Add offset to base address
+    sw $a1, 0($t0)             # Store color at position
+    jr $ra
+
+##############################################################################
+# Function to get color at specific position
+# Parameters:
+# $a0 - position offset (0, 4, 8, or 12)
+# Returns:
+# $v0 - color at position
+get_capsule_color:
+    la $t0, CURR_CAPSULE_STATE
+    add $t0, $t0, $a0         # Add offset to base address
+    lw $v0, 0($t0)             # Load color from position
+    jr $ra
+
+##############################################################################
+# Function to randomly set two opposite colors
+# Returns:
+# $t2 - left color
+generate_random_capsule_colors:
+    # Save return address
+    STORE_TO_STACK($ra)
+
+    # Generate first random color
+    jal generate_random_color
+    move $t2, $v0             # Save first color
+
+    # Generate second random color
+    jal generate_random_color
+    move $t3, $v0             # Save second color
+
+    # Set left color
+    li $a0, 0
+    move $a1, $t2
+    jal set_capsule_color
+
+    # Set right color
+    li $a0, 8
+    move $a1, $t3
+    jal set_capsule_color
+
+    # Restore return address
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+##############################################################################
+# Function to draw a capsule on the display
+# The location of the capsule is stored in $s0
+# The color of the 2x2 box for the capsule is stored in CURR_CAPSULE_STATE
+draw_capsule:
+    move $t0, $s0            # Set the starting address for the capsule stored in $s0
+    la $t1, CURR_CAPSULE_STATE      # Set the current color palette
+    lw $t2, 0($t1)                  # Set the top left color
+    lw $t3, 4($t1)                  # Set the top right color
+    lw $t4, 8($t1)                  # Set the bottom left color
+    lw $t5, 12($t1)                 # Set the bottow right color
+
+    # Start drawing
+    sw $t2, 0($t0)
+    sw $t3, 4($t0)
+    sw $t4, 128($t0)
+    sw $t5, 132($t0)
+    
+    jr $ra
+
+##############################################################################
+# Function to return random color
+# Return values:
+# - $v0: The color generated
+generate_random_color:
+    # Generate a random number from 0 - 2 inclusive, and put the result in $a0 register
+    li $v0, 42              # syscall 42: generate random number
+    li $a0, 0               # Random number generated from 0
+    li $a1, 3               # to 2 inclusive
+    syscall
+
+    beq $a0, 0, return_red
+    beq $a0, 1, return_blue
+    beq $a0, 2, return_yellow
+    lw $v0, WHITE
+
+    j grc_end
+
+    return_red:
+        lw $v0, RED
+        j grc_end
+
+    return_blue:
+        lw $v0, BLUE
+        j grc_end
+
+    return_yellow:
+        lw $v0, YELLOW
+        j grc_end
+
+    grc_end:
+        jr $ra
