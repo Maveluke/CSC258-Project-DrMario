@@ -166,7 +166,7 @@ clear_screen:
 #            1 0
 # Return value: $v0 = 1 (pattern 1) or $v0 = 2 (pattern 2)
 get_pattern:
-    lw $t1, 0($s0)                  # $t1 = color of the top left pixel
+    lw $t1, CURR_CAPSULE_STATE      # $t1 = color of the top left pixel
     beq $t1, 0, pattern_1           # Check if the top left pixel is black
     j pattern_2                     # The top left pixel is colored
     pattern_1:
@@ -188,7 +188,7 @@ move_left:
     addi $t0, $s0, 128                  # $t0 = address of the bottom left pixel of the capsule block
     addi $t0, $t0, -4                   # $t0 = new address of the bottom left pixel of the capsule block after moving left
     lw $t1, 0($t0)                      # $t1 = color of the new address of the bottom left pixel of the capsule block
-    beq $t1, $t9, ml_end                # Check if the new address of the bottom left pixel isn't occupied (is black)
+    bne $t1, $t9, ml_end                # Check if the new address of the bottom left pixel is occupied (isn't black)
     # The bottom left pixel of the capsule block can move left
     # Check if other pixels of the capsule block can move left
     jal get_pattern                     # Get the pattern of the current capsule block
@@ -312,7 +312,7 @@ rotate:
     r_can_rotate_1:
         # Rotate the capsule block from pattern 1 to pattern 2
         jal remove_capsule
-        lw $t0, CURR_CAPSULE_STATE      # $t0 = address of the top left pixel of the capsule block
+        la $t0, CURR_CAPSULE_STATE      # $t0 = address of the top left pixel of the capsule block
         addi $t1, $t0, 8                # $t1 = address of the bottom left pixel of the capsule block
         lw $t2, 0($t1)                  # $t2 = color of the bottom left pixel of the capsule block
         addi $t3, $t0, 12               # $t3 = address of the bottom right pixel of the capsule block
@@ -325,13 +325,12 @@ rotate:
     r_can_rotate_2:
         # Rotate the capsule block from pattern 2 to pattern 1
         jal remove_capsule
-        lw $t0, CURR_CAPSULE_STATE      # $t0 = address of the top left pixel of the capsule block
+        la $t0, CURR_CAPSULE_STATE      # $t0 = address of the top left pixel of the capsule block
         lw $t1, 0($t0)                  # $t1 = color of the top left pixel of the capsule block
         addi $t2, $t0, 8                # $t2 = address of the bottom left pixel of the capsule block
         lw $t3, 0($t2)                  # $t3 = color of the bottom left pixel of the capsule block
         addi $t4, $t0, 12               # $t4 = address of the bottom right pixel of the capsule block
-        sw $t1, 0($t2)                  # Move the color of the top left pixel to the bottom left pixel
-        sw $t3, 0($t4)                  # Move the color of the bottom left pixel to the bottom right pixel
+        sw $t1, 0($t4)                  # Move the color of the top left pixel to the bottom left pixel
         sw $t9, 0($t0)                  # Set the top left pixel to black
         jal draw_capsule
         j r_end
@@ -612,19 +611,26 @@ generate_random_capsule_colors:
 # The location of the capsule is stored in $s0
 # The color of the 2x2 box for the capsule is stored in CURR_CAPSULE_STATE
 draw_capsule:
+    STORE_TO_STACK($ra)
     move $t0, $s0                   # Set the starting address for the capsule stored in $s0
+    jal get_pattern                 # Get the pattern of the current capsule block
     la $t1, CURR_CAPSULE_STATE      # Set the current color palette
     lw $t2, 0($t1)                  # Set the top left color
     lw $t3, 4($t1)                  # Set the top right color
     lw $t4, 8($t1)                  # Set the bottom left color
     lw $t5, 12($t1)                 # Set the bottow right color
+    beq $v0, 1, draw_pattern_1      # Check if the pattern is 1
+    j draw_pattern_2                # The pattern is 2
 
     # Start drawing
-    sw $t2, 0($t0)
-    sw $t3, 4($t0)
-    sw $t4, 128($t0)
-    sw $t5, 132($t0)
-    
+    draw_pattern_1:
+        sw $t4, 128($t0)            # Draw the bottom left pixel
+        sw $t5, 132($t0)            # Draw the bottom right pixel
+    draw_pattern_2:
+        sw $t2, 0($t0)              # Draw the top left pixel
+        sw $t4, 128($t0)            # Draw the bottom left pixel
+
+    RESTORE_FROM_STACK($ra)
     jr $ra
 
 
@@ -633,21 +639,21 @@ draw_capsule:
 # The location of the capsule is stored in $s0
 remove_capsule:
     STORE_TO_STACK($ra)
-    move $t0, $s0            # Set the starting address for the capsule stored in $s0
-    lw $t1, BLACK           # Set the color to black
+    move $t7, $s0            # Set the starting address for the capsule stored in $s0
+    lw $t8, BLACK           # Set the color to black
 
     jal get_pattern
     beq $v0, 1, rc_pattern_1
     j rc_pattern_2
 
     rc_pattern_1:
-        sw $t1, 128($t0)
-        sw $t1, 132($t0)
+        sw $t8, 128($t7)
+        sw $t8, 132($t7)
         j rc_end
 
     rc_pattern_2:
-        sw $t1, 0($t0)
-        sw $t1, 128($t0)
+        sw $t8, 0($t7)
+        sw $t8, 128($t7)
         j rc_end
 
     rc_end:
