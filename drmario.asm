@@ -169,6 +169,7 @@ get_pattern:
 # Assumption: The capsule position is valid before moving left
 # Note: The capsule can only move left if there is nothing on the left
 move_left:
+    STORE_TO_STACK($ra)                 # Save the return address
     lw $t9, BLACK                       # $t9 = black
     # Check if the bottom left pixel of the capsule block can move 
     addi $t0, $s0, 128                  # $t0 = address of the bottom left pixel of the capsule block
@@ -190,6 +191,7 @@ move_left:
         addi $s0, $s0, -4               # Move the capsule block left by 1 pixel
     ml_end:
         # Return to the calling program
+        RESTORE_FROM_STACK($ra)         # Restore the return address
         jr $ra
 
 
@@ -198,6 +200,7 @@ move_left:
 # Assumption: The capsule position is valid before moving right
 # Note: The capsule can only move right if there is nothing on the right
 move_right:
+    STORE_TO_STACK($ra)                 # Save the return address
     lw $t9, BLACK                       # $t9 = black
     jal get_pattern                     # Get the pattern of the current capsule block
     beq $v0, 1, mr_pattern_1            # Check if the pattern is 1
@@ -228,6 +231,7 @@ move_right:
         addi $s0, $s0, 4                # Move the capsule block right by 1 pixel
     mr_end:
         # Return to the calling program
+        RESTORE_FROM_STACK($ra)         # Restore the return address
         jr $ra
 
 
@@ -236,6 +240,7 @@ move_right:
 # Assumption: The capsule position is valid before moving down
 # Note: The capsule can only move down if there is nothing below it
 move_down:
+    STORE_TO_STACK($ra)                 # Save the return address
     lw $t9, BLACK                       # $t9 = black
     # Check if the bottom left pixel of the capsule block can move down
     addi $t0, $s0, 128                  # $t0 = address of the bottom left pixel of the capsule block
@@ -258,6 +263,7 @@ move_down:
         addi $s0, $s0, 128              # Move the capsule block down by 1 pixel
     md_end:
         # Return to the calling program
+        RESTORE_FROM_STACK($ra)         # Restore the return address
         jr $ra
 
 
@@ -266,6 +272,7 @@ move_down:
 # Assumption: The capsule position is valid before rotating
 # Note: The capsule can only rotate if it doesn't collide with other blocks
 rotate:
+    STORE_TO_STACK($ra)                 # Save the return address
     lw $t9, BLACK                       # $t9 = black
     jal get_pattern                     # Get the pattern of the current capsule block
     beq $v0, 1, r_pattern_1             # Check if the pattern is 1
@@ -305,6 +312,7 @@ rotate:
         j r_end
     r_end:
         # Return to the calling program
+        RESTORE_FROM_STACK($ra)         # Restore the return address
         jr $ra
 
 
