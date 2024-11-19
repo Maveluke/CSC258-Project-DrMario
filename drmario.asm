@@ -111,6 +111,15 @@ VIRUS_COUNT:
 
     # Run the game.
 main:
+    # Reset all ALLOC_OFFSET_CAPSULE_HALF values to 0
+    la $t0, ALLOC_OFFSET_CAPSULE_HALF       # Load array address
+    li $t1, 1024                            # Number of words (4096/4)
+    clear:
+        sw $zero, 0($t0)                    # Store 0
+        addi $t0, $t0, 4                    # Next word
+        addi $t1, $t1, -1                   # Decrement counter
+        bnez $t1, clear                     # Continue if counter not zero
+
     # Initialize the game
     jal clear_screen
     jal draw_bottle
@@ -647,6 +656,7 @@ move_down:
             sw $t2, 0($t4)              # Store the offset of the bottom left pixel in bottom right pixel's AOCH
             add $t4, $t1, $t2           # $t4 = address of the bottom left pixel's AOCH
             sw $t3, 0($t4)              # Store the offset of the bottom right pixel in bottom left pixel's AOCH
+            j md_cant_move_end
         md_cant_move_2:
             # Find the offset of the top left and bottom left pixels, relative to the base bitmap
             move $t0, $s0               # $t0 = address of the top left pixel of the capsule block
@@ -659,9 +669,10 @@ move_down:
             sw $t2, 0($t4)              # Store the offset of the top left pixel in bottom left pixel's AOCH
             add $t4, $t1, $t2           # $t4 = address of the top left pixel's AOCH
             sw $t3, 0($t4)              # Store the offset of the bottom left pixel in top left pixel's AOCH
-
-        li $v0, 1                       # $v0 = 1 since the capsule block can't move down
-        j md_end
+            j md_cant_move_end
+        md_cant_move_end:
+            li $v0, 1                   # $v0 = 1 since the capsule block can't move down
+            j md_end
     md_end:
         # Return to the calling program
         RESTORE_FROM_STACK($ra)         # Restore the return address
