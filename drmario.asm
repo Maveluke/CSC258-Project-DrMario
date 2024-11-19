@@ -769,6 +769,26 @@ draw_horizontal_line:
     # Return to the calling program
     jr $ra
 
+##############################################################################
+# Function to check if the color is a virus's color
+# Parameters: $a0 = pixel's color
+is_virus_color:
+    STORE_TO_STACK($ra)
+
+    lw $t0, RED_VIRUS
+    beq $a0, $t0, is_virus
+    lw $t0, GREEN_VIRUS
+    beq $a0, $t0, is_virus
+    lw $t0, BLUE_VIRUS
+    beq $a0, $t0, is_virus
+
+    li $v0, 0          # Not a virus
+    j is_virus_end
+    is_virus:
+        li $v0, 1          # Is a virus
+    is_virus_end:
+        RESTORE_FROM_STACK($ra)
+        jr $ra
 
 ##############################################################################
 # Function to remove consecutive lines (vertical)
@@ -814,13 +834,13 @@ remove_consecutives_v:
         RESTORE_FROM_STACK($t1)
         RESTORE_FROM_STACK($t0)
 
-        beq $v0, $zero, not_virus_h
+        beq $v0, $zero, not_virus_v
         addi $s2, $s2, 1        # Increment virus counter if virus found
         lw $s7, VIRUS_COUNT
         addi $s7, $s7, -1       # Decrement total virus count
         sw $s7, VIRUS_COUNT
 
-        not_virus_h:
+        not_virus_v:
         # Check if current position is part of a capsule
         lw $t2, 0($t0)                         # Load capsule reference
         beq $t2, $zero, rcv_next               # Skip if not part of capsule
