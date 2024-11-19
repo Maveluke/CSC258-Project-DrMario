@@ -60,8 +60,6 @@ BOTTLE_TL_X:
     .word 3
 BOTTLE_TL_Y:
     .word 13
-ADDR_GRID_START:
-    .word 0x1000868c
 VIRUS_COUNT:
     .word 4
 ADDR_VIRUS_STARTING_POINT:
@@ -171,7 +169,7 @@ game_loop:
 
     handle_remove_consecutives:
         jal scan_consecutives
-        # beq $v0, 1, handle_falling
+        beq $v0, 1, scan_falling_capsules
         j generate_new_capsule
     after_handling_move:
     # 2a. Check for collisions
@@ -217,6 +215,7 @@ clear_screen:
 # Registers used: t0, t1, t2, t3, t4, t7, t8, s7
 # Returns: $v0 = 1 if there are consecutive lines to be removed, $v0 = 0 otherwise
 scan_consecutives:
+    li $v0, 0                       # Initialize return value to 0
     STORE_TO_STACK($ra)
 
     li $t1, 0                       # t1 = row to be scanned
@@ -614,7 +613,7 @@ remove_consecutives_v:
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
-    la $t8, ALLOC_ADDR_CAPSULE_HALF        # Load capsule matrix base address
+    la $t8, ALLOC_OFFSET_CAPSULE_HALF      # Load capsule matrix base address
     lw $s0, ADDR_GRID_START                # Load display base address
 
     # Calculate start position
@@ -712,7 +711,7 @@ remove_consecutives_h:
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
-    la $t8, ALLOC_ADDR_CAPSULE_HALF
+    la $t8, ALLOC_OFFSET_CAPSULE_HALF
     lw $s0, ADDR_GRID_START                 # Load base address for display
     # Calculate start position
     sll $a0, $a0, 2                         # X offset
