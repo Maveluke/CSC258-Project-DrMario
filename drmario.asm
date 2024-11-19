@@ -153,6 +153,8 @@ game_loop:
     beq $t1, 0x61, handle_move_left     # Check if the key is 'a'
     beq $t1, 0x73, handle_move_down     # Check if the key is 's'
     beq $t1, 0x64, handle_move_right    # Check if the key is 'd'
+    beq $t1, 0x72, handle_reset         # Check if the key is 'r'
+    beq $t1, 0x7a, debug_change_capsule # Check if the key is 'z' TODO: delete this for production
     j gl_after_generate                 # Invalid key pressed, get another key
     handle_rotate:
         jal rotate
@@ -167,6 +169,11 @@ game_loop:
     handle_move_right:
         jal move_right
         j after_handling_move
+    debug_change_capsule:
+        jal remove_capsule
+        j generate_new_capsule
+    handle_reset:
+        j main
 
     handle_relationship_matrix:
         jal initialize_capsule_to_matrix
@@ -193,6 +200,9 @@ game_loop:
 
 
     generate_new_capsule:
+        # If there's no more viruses, end the game
+        beq $s1, $zero, game_end
+        # There's at least one virus left, generate a new capsule
         j game_loop
 game_end:
     li $v0, 10                  # Terminate the program gracefully
