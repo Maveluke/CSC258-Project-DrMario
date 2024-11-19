@@ -60,8 +60,6 @@ BOTTLE_TL_X:
     .word 3
 BOTTLE_TL_Y:
     .word 13
-VIRUS_COUNT:
-    .word 4
 ADDR_VIRUS_STARTING_POINT:
     .word 0x1000888c  # 17 * (32 * 4) + 3 * 4 = 2188
 POSSIBLE_VIRUS_POSITION_HEIGHT:
@@ -100,6 +98,9 @@ PREV_BITMAP:
 ALLOC_OFFSET_CAPSULE_HALF:
     .space 4096
 
+# Integer storing the number of viruses in the bottle
+VIRUS_COUNT:
+    .word 4
 ##############################################################################
 # Code
 ##############################################################################
@@ -804,13 +805,12 @@ remove_consecutives_v:
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
     la $t8, ALLOC_OFFSET_CAPSULE_HALF      # Load capsule matrix base address
-    lw $s7, ADDR_GRID_START                # Load display base address
+    lw $s7, ADDR_DSPL                # Load display base address
 
     # Calculate start position
     sll $a0, $a0, 2                        # X offset (x * 4)
     sll $a1, $a1, 7                        # Y offset (y * 128)
     add $t0, $a0, $a1                      # Combined offset
-    add $s6, $s7, $t0                      # s6 = display address
     add $t0, $t8, $t0                      # t0 = capsule matrix address
 
     sll $t1, $a2, 7                        # Calculate length offset (length * 128 for vertical)
@@ -836,9 +836,7 @@ remove_consecutives_v:
 
         beq $v0, $zero, not_virus_v
         addi $s2, $s2, 1        # Increment virus counter if virus found
-        lw $s7, VIRUS_COUNT
-        addi $s7, $s7, -1       # Decrement total virus count
-        sw $s7, VIRUS_COUNT
+        addi $s1, $s1, -1       # Decrement total virus count
 
         not_virus_v:
         # Check if current position is part of a capsule
@@ -916,12 +914,11 @@ remove_consecutives_h:
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
     la $t8, ALLOC_OFFSET_CAPSULE_HALF
-    lw $s7, ADDR_GRID_START                 # Load base address for display
+    lw $s7, ADDR_DSPL                # Load display base address
     # Calculate start position
     sll $a0, $a0, 2                         # X offset
     sll $a1, $a1, 7                         # Y offset
     add $t0, $a0, $a1                       # Combined offset
-    add $s1, $s7, $t0                       # Display address
     add $t0, $t8, $t0                       # Capsule matrix address
 
     sll $t1, $a2, 2                         # Calculate length offset
@@ -946,9 +943,7 @@ remove_consecutives_h:
 
         beq $v0, $zero, not_virus_h
         addi $s2, $s2, 1        # Increment virus counter if virus found
-        lw $s7, VIRUS_COUNT
-        addi $s7, $s7, -1       # Decrement total virus count
-        sw $s7, VIRUS_COUNT
+        addi $s1, $s1, -1       # Decrement total virus count
 
         not_virus_h:
         # Check if current position is part of a capsule
