@@ -175,7 +175,7 @@ game_loop:
         j generate_new_capsule
     handle_falling:
         jal scan_falling_capsules
-        # beq $v0, 1, handle_remove_consecutives
+        beq $v1, 1, handle_remove_consecutives
         j generate_new_capsule
     after_handling_move:
     # 2a. Check for collisions
@@ -335,7 +335,24 @@ scan_consecutives:
             beq $t3, $zero, sc_cont_while_hc        # Skip if tracking black
             addi $t4, $t4, 1                        # Increment count
             lw $s7, 4($t5)                          # Load next color
-            beq $s7, $t3, sc_cont_while_hc          # Check if next color is the same
+            # Check if colors match (including virus variants)
+            STORE_TO_STACK($t0)
+            STORE_TO_STACK($t1)
+            STORE_TO_STACK($t2)
+            STORE_TO_STACK($t3)
+            STORE_TO_STACK($t4)
+            STORE_TO_STACK($t5)
+            move $a0, $t3                           # First color (tracked)
+            move $a1, $s7                           # Second color (current)
+            jal check_matching_colors
+            RESTORE_FROM_STACK($t5)
+            RESTORE_FROM_STACK($t4)
+            RESTORE_FROM_STACK($t3)
+            RESTORE_FROM_STACK($t2)
+            RESTORE_FROM_STACK($t1)
+            RESTORE_FROM_STACK($t0)
+
+            beq $v0, 1, sc_cont_while_hc            # If colors match, increment
             bge $t4, 4, sc_remove_hc                # Check if we have 4+ consecutive
             j sc_cont_while_hc
 
@@ -411,7 +428,24 @@ scan_consecutives:
             beq $t3, $zero, sc_cont_while_vc           # Skip if tracking black
             addi $t4, $t4, 1                           # Increment count
             lw $s7, 128($t5)                          # Load next color
-            beq $s7, $t3, sc_cont_while_vc          # Check if next color is the same
+            # Check if colors match (including virus variants)
+            STORE_TO_STACK($t0)
+            STORE_TO_STACK($t1)
+            STORE_TO_STACK($t2)
+            STORE_TO_STACK($t3)
+            STORE_TO_STACK($t4)
+            STORE_TO_STACK($t5)
+            move $a0, $t3                           # First color (tracked)
+            move $a1, $s7                           # Second color (current)
+            jal check_matching_colors
+            RESTORE_FROM_STACK($t5)
+            RESTORE_FROM_STACK($t4)
+            RESTORE_FROM_STACK($t3)
+            RESTORE_FROM_STACK($t2)
+            RESTORE_FROM_STACK($t1)
+            RESTORE_FROM_STACK($t0)
+
+            beq $v0, 1, sc_cont_while_vc            # If colors match, increment
             bge $t4, 4, sc_remove_vc                   # Check if we have 4+ consecutive
             j sc_cont_while_vc
 
@@ -711,41 +745,57 @@ draw_horizontal_line:
 # $a0 = X coordinate of the starting point
 # $a1 = Y coordinate of the starting point
 # $a2 = length of the line
-# Registers changed: $ra, $v0, $a0, $a3
+# Registers changed: $ra, $v0, $a0, $a2
 remove_consecutives_v:
     STORE_TO_STACK($ra)
-    STORE_TO_STACK($s0)
-    STORE_TO_STACK($s1)
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
     la $t8, ALLOC_OFFSET_CAPSULE_HALF      # Load capsule matrix base address
-    lw $s0, ADDR_GRID_START                # Load display base address
+    lw $s7, ADDR_GRID_START                # Load display base address
 
     # Calculate start position
     sll $a0, $a0, 2                        # X offset (x * 4)
     sll $a1, $a1, 7                        # Y offset (y * 128)
     add $t0, $a0, $a1                      # Combined offset
-    add $s1, $s0, $t0                      # Display address
-    add $t0, $t8, $t0                      # Capsule matrix address
+    add $s6, $s7, $t0                      # s6 = display address
+    add $t0, $t8, $t0                      # t0 = capsule matrix address
 
     sll $t1, $a2, 7                        # Calculate length offset (length * 128 for vertical)
-    add $t1, $t1, $t0                      # End address
+    add $t1, $t1, $t0                      # t1 = end address
 
-    rcv_alter_capsule_matrix:
-        beq $t0, $t1, rcv_alter_end            # Check if we've reached the end
+    rcv_alter_capsule_matrix: beq $t0, $t1, rcv_alter_end            # Check if we've reached the end
+        # Check if current position has a virus
+        sub $t3, $t0, $t8        # Get offset from capsule matrix
+        add $t3, $s7, $t3        # Get display address
+        lw $t4, 0($t3)           # Load color
 
+        # Check if it's a virus
+        STORE_TO_STACK($t0)
+        STORE_TO_STACK($t1)
+        STORE_TO_STACK($t3)
+        STORE_TO_STACK($t4)
+        move $a0, $t4
+        jal is_virus_color
+        RESTORE_FROM_STACK($t4)
+        RESTORE_FROM_STACK($t3)
+        RESTORE_FROM_STACK($t1)
+        RESTORE_FROM_STACK($t0)
+
+        beq $v0, $zero, not_virus_h
+        addi $s2, $s2, 1        # Increment virus counter if virus found
+        lw $s7, VIRUS_COUNT
+        addi $s7, $s7, -1       # Decrement total virus count
+        sw $s7, VIRUS_COUNT
+
+        not_virus_h:
         # Check if current position is part of a capsule
         lw $t2, 0($t0)                         # Load capsule reference
         beq $t2, $zero, rcv_next               # Skip if not part of capsule
 
-        # Clear both halves of the capsule
-        sub $t3, $t0, $t8                      # Get offset from capsule matrix base
-        add $t3, $s0, $t3                      # Get display address
-        sw $zero, 0($t3)                       # Clear display pixel
-
         lw $t4, 0($t0)                         # Load reference again
-        sw $zero, $t4($t8)                     # Clear other half reference
+        add $t7, $t4, $t8                      # Get other half reference
+        sw $zero, 0($t7)                     # Clear other half reference
         sw $zero, 0($t0)                       # Clear current reference
 
     rcv_next:
@@ -797,8 +847,6 @@ remove_consecutives_v:
     RESTORE_FROM_STACK($a1)
     RESTORE_FROM_STACK($a0)
 
-    RESTORE_FROM_STACK($s1)
-    RESTORE_FROM_STACK($s0)
     RESTORE_FROM_STACK($ra)
     jr $ra
 
@@ -812,32 +860,52 @@ remove_consecutives_v:
 # $a2 = length of the line
 remove_consecutives_h:
     STORE_TO_STACK($ra)
-    STORE_TO_STACK($s0)
-    STORE_TO_STACK($s1)
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
     la $t8, ALLOC_OFFSET_CAPSULE_HALF
-    lw $s0, ADDR_GRID_START                 # Load base address for display
+    lw $s7, ADDR_GRID_START                 # Load base address for display
     # Calculate start position
     sll $a0, $a0, 2                         # X offset
     sll $a1, $a1, 7                         # Y offset
     add $t0, $a0, $a1                       # Combined offset
-    add $s1, $s0, $t0                       # Display address
+    add $s1, $s7, $t0                       # Display address
     add $t0, $t8, $t0                       # Capsule matrix address
+
     sll $t1, $a2, 2                         # Calculate length offset
     add $t1, $t1, $t0                       # End address
-    rch_alter_capsule_matrix:
-        beq $t0, $t1, rch_alter_end
+    rch_alter_capsule_matrix:   beq $t0, $t1, rch_alter_end
+        # Check if current position has a virus
+        sub $t3, $t0, $t8        # Get offset from capsule matrix
+        add $t3, $s7, $t3        # Get display address
+        lw $t4, 0($t3)           # Load color
+
+        # Check if it's a virus
+        STORE_TO_STACK($t0)
+        STORE_TO_STACK($t1)
+        STORE_TO_STACK($t3)
+        STORE_TO_STACK($t4)
+        move $a0, $t4
+        jal is_virus_color
+        RESTORE_FROM_STACK($t4)
+        RESTORE_FROM_STACK($t3)
+        RESTORE_FROM_STACK($t1)
+        RESTORE_FROM_STACK($t0)
+
+        beq $v0, $zero, not_virus_h
+        addi $s2, $s2, 1        # Increment virus counter if virus found
+        lw $s7, VIRUS_COUNT
+        addi $s7, $s7, -1       # Decrement total virus count
+        sw $s7, VIRUS_COUNT
+
+        not_virus_h:
         # Check if current position is part of a capsule
         lw $t2, 0($t0)                          # Load capsule reference
         beq $t2, $zero, rch_next                # Skip if not part of capsule
-        # Clear both halves of the capsule
-        sub $t3, $t0, $t8                       # Get offset from capsule matrix base
-        add $t3, $s0, $t3                       # Get display address
-        sw $zero, 0($t3)                        # Clear display pixel
+
         lw $t4, 0($t0)                          # Load reference again
-        sw $zero, $t4($t8)                      # Clear other half reference
+        add $t7, $t4, $t8                      # Get other half reference
+        sw $zero, 0($t7)                     # Clear other half reference
         sw $zero, 0($t0)                        # Clear current reference
     rch_next:
         addi $t0, $t0, 4
@@ -887,8 +955,6 @@ remove_consecutives_h:
     RESTORE_FROM_STACK($a1)
     RESTORE_FROM_STACK($a0)
     
-    RESTORE_FROM_STACK($s1)
-    RESTORE_FROM_STACK($s0)
     RESTORE_FROM_STACK($ra)
     jr $ra
 
