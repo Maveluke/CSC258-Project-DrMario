@@ -227,40 +227,46 @@ scan_consecutives:
         add $t0, $t0, $s7
 
         lw $t3, 0($t0)                                  # t3 = current pixel color
-        li $v0, 0x10008e0c
-        sw $t3, 0($v0)
         li $t4, 0                                       # t4 = counter for number of consecutives with same colors
-        sc_while_hc: beq $t2, $t8, sc_end_hc            # Check if the column has reached the end
-            # t0 = the address to the current pixel (ADDR_GRID_START(3, 13) + t2 * 4 (t1 move horizontally))
-            sll $s7, $t2, 2                             # Store t2 * 4 temporarily
-            add $t5, $t0, $s7
+        sc_while_hc: beq $t2, $t8, sc_end_hc        # Check if end of row
+            sll $s7, $t2, 2                         # Calculate offset
+            add $t5, $t0, $s7                       # Get current pixel address
 
-            lw $s7, 0($t5)                              # s7 = current pixel color
-            beq $s7, $t3, sc_increment_hc            # Check if the current pixel color is the same as the stored color
-            j sc_track_remove_hc
-            sc_increment_hc:                            # Increase counter if the current pixel color is the same as the stored color and is not black
-            beq $t3, $zero, sc_cont_while_hc             # If the current pixel color is black, don't increment the counter
-            addi $t4, $t4, 1
+            lw $s7, 0($t5)                          # Load current color
+            beq $s7, $zero, sc_reset_count_hc          # If black, reset count
+
+            beq $s7, $t3, sc_increment_hc           # If same color, increment
+
+            # Different color (not black)
+            move $t3, $s7                           # Track new color
+            li $t4, 1                               # Reset count to 1
             j sc_cont_while_hc
-            sc_track_remove_hc:
-            blt $t4, 4, sc_track_hc                # If the counter is less than 4:
-            j sc_remove_hc
-            sc_track_hc:                           # Track the current pixel color instead
-            lw $t3, 0($t5)
+
+            sc_increment_hc:
+            beq $t3, $zero, sc_cont_while_hc        # Skip if tracking black
+            addi $t4, $t4, 1                        # Increment count
+            bge $t4, 4, sc_remove_hc                # Check if we have 4+ consecutive
             j sc_cont_while_hc
+
+            sc_reset_count_hc:
+            li $t3, 0                               # Reset tracked color
+            li $t4, 0                               # Reset count
+            j sc_cont_while_hc
+
             sc_remove_hc:
-            lw $s7, BOTTLE_TL_X                     # $s7 = BOTTLE_TL_X temporarily
-            lw $s6, BOTTLE_TL_Y                     # $s6 = BOTTLE_TL_Y temporarily
-            add $a0, $t2, $s7                       # Set the X coordinate of the ending point = t2(column_i) + 3
-            add $a1, $t1, $s6                       # Set the Y coordinate of the starting point = t1(row_i) + 13
-            sub $a0, $a0, $t4                       # Subtract the number of consecutive pixels from the ending X coordinate
-            move $a3, $t4
+            lw $s7, BOTTLE_TL_X
+            lw $s6, BOTTLE_TL_Y
+            add $a0, $t2, $s7                       # Current position + offset
+            add $a1, $t1, $s6
+            sub $a0, $a0, $t4                       # Go back to start of sequence
+            addi $a0, $a0, 1                        # Adjust for 0-based index
+            move $a2, $t4                           # Length to remove
             jal remove_consecutives_h
-            li $v0, 1
+            li $v0, 1                               # Set return value
             j sc_end
 
             sc_cont_while_hc:
-            addi $t2, $t2, 1
+            addi $t2, $t2, 1                        # Next column
             j sc_while_hc
 
         sc_end_hc:
@@ -270,51 +276,59 @@ scan_consecutives:
     sc_end_h:
     # Scan vertically (t1, t2)
     li $t2, 0                                           # t2 = column to be scanned
-    sc_while_v: beq $t2, $t8, sc_end                  # Check if the column has reached the end
+    sc_while_v: beq $t2, $t8, sc_end                   # Check if the column has reached the end
         li $t1, 0                                       # t1 = current row
-        # t0 = the address to the current pixel (ADDR_GRID_START(3, 13) + t1 * 4 (t1 move horizontally))
+        # t0 = the address to the current pixel (ADDR_GRID_START + t2 * 4 (t2 move horizontally))
         sll $t0, $t2, 2
         lw $s7, ADDR_GRID_START
         add $t0, $t0, $s7
 
         lw $t3, 0($t0)                                  # t3 = current pixel color
         li $t4, 0                                       # t4 = counter for number of consecutives with same colors
-        sc_while_vr: beq $t1, $t7, sc_end_vr            # Check if the row has reached the end
-            # t0 = the address to the current pixel (ADDR_GRID_START(3, 13) + t2 * 128 (t2 move vertically))
-            sll $s7, $t1, 7                             # Store t1 * 128 temporarily
-            add $t5, $t0, $s7
+        sc_while_vc: beq $t1, $t7, sc_end_vc           # Check if end of column
+            sll $s7, $t1, 7                            # Calculate vertical offset (row * 128)
+            add $t5, $t0, $s7                          # Get current pixel address
 
-            lw $s7, 0($t5)                              # s7 = current pixel color
-            beq $s7, $t3, sc_increment_vr               # Check if the current pixel color is the same as the stored color
-            j sc_track_remove_vr
-            sc_increment_vr:                            # Increase counter if the current pixel color is the same as the stored color and is not black
-            beq $t3, $zero, sc_cont_while_vr             # If the current pixel color is black, don't increment the counter
-            addi $t4, $t4, 1
-            j sc_cont_while_vr                          # Continue scanning vertically
-            sc_track_remove_vr:
-            blt $t4, 4, sc_track_vr                     # If the counter is less than 4:
-            j sc_remove_vr
-            sc_track_vr:                                # Track the current pixel color instead
-            lw $t3, 0($t5)
-            j sc_cont_while_vr
-            sc_remove_vr:                               # Remove the consecutive pixels
-            lw $s7, BOTTLE_TL_X                         # $s7 = BOTTLE_TL_X temporarily
-            lw $s6, BOTTLE_TL_Y                         # $s6 = BOTTLE_TL_Y temporarily
-            add $a0, $t2, $s7                           # Set the X coordinate of the starting point = t2(column_i) + 3
-            add $a1, $t1, $s6                           # Set the Y coordinate of the ending point = t1(row_i) + 13
-            sub $a1, $a1, $t4                           # Subtract the number of consecutive pixels from the ending Y coordinate
-            move $a3, $t4
+            lw $s7, 0($t5)                             # Load current color
+            beq $s7, $zero, sc_reset_count_vc          # If black, reset count
+
+            beq $s7, $t3, sc_increment_vc              # If same color, increment
+
+            # Different color (not black)
+            move $t3, $s7                              # Track new color
+            li $t4, 1                                  # Reset count to 1
+            j sc_cont_while_vc
+
+            sc_increment_vc:
+            beq $t3, $zero, sc_cont_while_vc           # Skip if tracking black
+            addi $t4, $t4, 1                           # Increment count
+            bge $t4, 4, sc_remove_vc                   # Check if we have 4+ consecutive
+            j sc_cont_while_vc
+
+            sc_reset_count_vc:
+            li $t3, 0                                  # Reset tracked color
+            li $t4, 0                                  # Reset count
+            j sc_cont_while_vc
+
+            sc_remove_vc:
+            lw $s7, BOTTLE_TL_X
+            lw $s6, BOTTLE_TL_Y
+            add $a0, $t2, $s7                          # Current position + offset X
+            add $a1, $t1, $s6                          # Current position + offset Y
+            sub $a1, $a1, $t4                          # Go back to start of sequence
+            addi $a1, $a1, 1                           # Adjust for 0-based index
+            move $a2, $t4                              # Length to remove
             jal remove_consecutives_v
-            li $v0, 1
+            li $v0, 1                                  # Set return value
             j sc_end
 
-            sc_cont_while_vr:
-            addi $t1, $t1, 1
-            j sc_while_vr
+            sc_cont_while_vc:
+            addi $t1, $t1, 1                           # Next row
+            j sc_while_vc
 
-        sc_end_vr:
-        addi $t2, $t2, 1                        # Move to the next row
-        j sc_while_v                            # Continue scanning vertically
+        sc_end_vc:
+        addi $t2, $t2, 1                               # Move to the next column
+        j sc_while_v                                   # Continue scanning vertically
 
     sc_end:
 
@@ -582,29 +596,49 @@ draw_horizontal_line:
 # $a2 = length of the line
 remove_consecutives_v:
     STORE_TO_STACK($ra)
+    STORE_TO_STACK($s0)
+    STORE_TO_STACK($s1)
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    la $t8, ALLOC_ADDR_CAPSULE_HALF        # Load capsule matrix base address
+    lw $s0, ADDR_GRID_START                # Load display base address
 
-    la $t8, ALLOC_ADDR_CAPSULE_HALF
-    # Add X and Y offset to $t0 to get the offset address at (X, Y)
-    sll $a0, $a0, 2
-    sll $a1, $a1, 7
-    add $t0, $a0, $a1
+    # Calculate start position
+    sll $a0, $a0, 2                        # X offset (x * 4)
+    sll $a1, $a1, 7                        # Y offset (y * 128)
+    add $t0, $a0, $a1                      # Combined offset
+    add $s1, $s0, $t0                      # Display address
+    add $t0, $t8, $t0                      # Capsule matrix address
 
-    sll $t1, $a2, 7             # t1 = the offset address of the final point in the vertical line
-    add $t1, $t1, $t0           #
+    sll $t1, $a2, 7                        # Calculate length offset (length * 128 for vertical)
+    add $t1, $t1, $t0                      # End address
 
-    rcv_alter_capsule_matrix: beq $t0, $t1, rcv_alter_end
-        lw $t2, $t0($t8)                        # t2 = Value in the current address
-        bne $t2, 0, rcv_separate_capsule        # Check if the value is not zero
-        addi $t0, $t0, 128                      # Add 128 to move downward
-        j rcv_alter_capsule_matrix
+    rcv_alter_capsule_matrix:
+        beq $t0, $t1, rcv_alter_end            # Check if we've reached the end
 
-        rcv_separate_capsule:                   # Separate the capsule
-        sw $zero, $t2($t8)                      # Set the value at t2 offset from the ALLOC_ADDR_CAPSULE_HALF to zero
-        sw $zero, 0($t0)                        # Set the value at the current offset address to zero
-        addi $t0, $t0, 128
+        # Check if current position is part of a capsule
+        lw $t2, 0($t0)                         # Load capsule reference
+        beq $t2, $zero, rcv_next               # Skip if not part of capsule
+
+        # Clear both halves of the capsule
+        sub $t3, $t0, $t8                      # Get offset from capsule matrix base
+        add $t3, $s0, $t3                      # Get display address
+        sw $zero, 0($t3)                       # Clear display pixel
+
+        lw $t4, 0($t0)                         # Load reference again
+        sw $zero, $t4($t8)                     # Clear other half reference
+        sw $zero, 0($t0)                       # Clear current reference
+
+    rcv_next:
+        addi $t0, $t0, 128                     # Move to next row (128 bytes down)
         j rcv_alter_capsule_matrix
 
     rcv_alter_end:
+    # Store parameters for animation
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
 
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
@@ -645,6 +679,8 @@ remove_consecutives_v:
     RESTORE_FROM_STACK($a1)
     RESTORE_FROM_STACK($a0)
 
+    RESTORE_FROM_STACK($s1)
+    RESTORE_FROM_STACK($s0)
     RESTORE_FROM_STACK($ra)
     jr $ra
 
@@ -658,29 +694,42 @@ remove_consecutives_v:
 # $a2 = length of the line
 remove_consecutives_h:
     STORE_TO_STACK($ra)
-
+    STORE_TO_STACK($s0)
+    STORE_TO_STACK($s1)
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
     la $t8, ALLOC_ADDR_CAPSULE_HALF
-    # Add X and Y offset to $t0 to get the offset address at (X, Y)
-    sll $a0, $a0, 2
-    sll $a1, $a1, 7
-    add $t0, $a0, $a1
-
-    sll $t1, $a2, 2             # t1 = the offset address of the final point in the line
-    add $t1, $t1, $t0           #
-
-    rch_alter_capsule_matrix: beq $t0, $t1, rch_alter_end
-        lw $t2, $t0($t8)                        # t2 = Value in the current address
-        bne $t2, 0, rch_separate_capsule        # Check if the value is not zero
+    lw $s0, ADDR_GRID_START                 # Load base address for display
+    # Calculate start position
+    sll $a0, $a0, 2                         # X offset
+    sll $a1, $a1, 7                         # Y offset
+    add $t0, $a0, $a1                       # Combined offset
+    add $s1, $s0, $t0                       # Display address
+    add $t0, $t8, $t0                       # Capsule matrix address
+    sll $t1, $a2, 2                         # Calculate length offset
+    add $t1, $t1, $t0                       # End address
+    rch_alter_capsule_matrix:
+        beq $t0, $t1, rch_alter_end
+        # Check if current position is part of a capsule
+        lw $t2, 0($t0)                          # Load capsule reference
+        beq $t2, $zero, rch_next                # Skip if not part of capsule
+        # Clear both halves of the capsule
+        sub $t3, $t0, $t8                       # Get offset from capsule matrix base
+        add $t3, $s0, $t3                       # Get display address
+        sw $zero, 0($t3)                        # Clear display pixel
+        lw $t4, 0($t0)                          # Load reference again
+        sw $zero, $t4($t8)                      # Clear other half reference
+        sw $zero, 0($t0)                        # Clear current reference
+    rch_next:
         addi $t0, $t0, 4
         j rch_alter_capsule_matrix
-
-        rch_separate_capsule:                   # Separate the capsule
-        sw $zero, $t2($t8)                      # Set the value at t2 offset from the ALLOC_ADDR_CAPSULE_HALF to zero
-        sw $zero, 0($t0)                           # Set the value at the current offset address to zero
-        addi $t0, $t0, 4
-        j rch_alter_capsule_matrix
-
     rch_alter_end:
+    
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
@@ -719,7 +768,9 @@ remove_consecutives_h:
     RESTORE_FROM_STACK($a2)
     RESTORE_FROM_STACK($a1)
     RESTORE_FROM_STACK($a0)
-
+    
+    RESTORE_FROM_STACK($s1)
+    RESTORE_FROM_STACK($s0)
     RESTORE_FROM_STACK($ra)
     jr $ra
 
