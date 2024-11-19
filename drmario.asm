@@ -161,18 +161,21 @@ game_loop:
         j after_handling_move
     handle_move_down:
         jal move_down
-        beq $v0, 1, handle_remove_consecutives
+        beq $v0, 1, handle_relationship_matrix
         j after_handling_move
     handle_move_right:
         jal move_right
         j after_handling_move
 
+    handle_relationship_matrix:
+        jal initialize_capsule_to_matrix
     handle_remove_consecutives:
         jal scan_consecutives
         beq $v0, 1, handle_falling
         j generate_new_capsule
     handle_falling:
         jal scan_falling_capsules
+        # beq $v0, 1, handle_remove_consecutives
         j generate_new_capsule
     after_handling_move:
     # 2a. Check for collisions
@@ -212,6 +215,69 @@ clear_screen:
         jr $ra
 
 
+initialize_capsule_to_matrix:
+    la $t0, ALLOC_OFFSET_CAPSULE_HALF           # $t0 = address of ALLOC_OFFSET_CAPSULE_HALF
+    lw $t1, ADDR_DSPL                           # $t1 = base address for display
+    sub $t2, $s0, $t1                           # $t2 = offset of the top left pixel of the capsule block
+
+##############################################################################
+# Helper function to check if colors match (including virus variants)
+# Parameters: $a0 = first color, $a1 = second color
+# Registers changed: $v0, $a0, $a1, $t0, $t1, $t2, $t3, $t4, $t5
+# Returns: $v0 = 1 if colors match, 0 otherwise
+check_matching_colors:
+    STORE_TO_STACK($ra)
+
+    # Load virus colors
+    lw $t0, RED_VIRUS
+    lw $t1, RED
+    lw $t2, GREEN_VIRUS
+    lw $t3, GREEN
+    lw $t4, BLUE_VIRUS
+    lw $t5, BLUE
+
+    # Check red variants
+    beq $a0, $t0, check_red          # First color is red virus
+    beq $a0, $t1, check_red          # First color is red capsule
+
+    # Check green variants
+    beq $a0, $t2, check_green        # First color is green virus
+    beq $a0, $t3, check_green        # First color is green capsule
+
+    # Check blue variants
+    beq $a0, $t4, check_blue         # First color is blue virus
+    beq $a0, $t5, check_blue         # First color is blue capsule
+
+    # No match found
+    li $v0, 0
+    j check_end
+
+    check_red:
+        beq $a1, $t0, colors_match      # Second color is red virus
+        beq $a1, $t1, colors_match      # Second color is red capsule
+        li $v0, 0
+        j check_end
+
+    check_green:
+        beq $a1, $t2, colors_match      # Second color is green virus
+        beq $a1, $t3, colors_match      # Second color is green capsule
+        li $v0, 0
+        j check_end
+
+    check_blue:
+        beq $a1, $t4, colors_match      # Second color is blue virus
+        beq $a1, $t5, colors_match      # Second color is blue capsule
+        li $v0, 0
+        j check_end
+
+    colors_match:
+        li $v0, 1
+
+    check_end:
+        RESTORE_FROM_STACK($ra)
+        jr $ra
+
+
 ##############################################################################
 # Function to scan for consecutive lines with the same color
 # Assumption: The lines to be removed are consecutive
@@ -242,8 +308,24 @@ scan_consecutives:
             lw $s7, 0($t5)                          # Load current color
             beq $s7, $zero, sc_reset_count_hc          # If black, reset count
 
-            beq $s7, $t3, sc_increment_hc           # If same color, increment
+            # Check if colors match (including virus variants)
+            STORE_TO_STACK($t0)
+            STORE_TO_STACK($t1)
+            STORE_TO_STACK($t2)
+            STORE_TO_STACK($t3)
+            STORE_TO_STACK($t4)
+            STORE_TO_STACK($t5)
+            move $a0, $t3                           # First color (tracked)
+            move $a1, $s7                           # Second color (current)
+            jal check_matching_colors
+            RESTORE_FROM_STACK($t5)
+            RESTORE_FROM_STACK($t4)
+            RESTORE_FROM_STACK($t3)
+            RESTORE_FROM_STACK($t2)
+            RESTORE_FROM_STACK($t1)
+            RESTORE_FROM_STACK($t0)
 
+            beq $v0, 1, sc_increment_hc            # If colors match, increment
             # Different color (not black)
             move $t3, $s7                           # Track new color
             li $t4, 1                               # Reset count to 1
@@ -252,6 +334,8 @@ scan_consecutives:
             sc_increment_hc:
             beq $t3, $zero, sc_cont_while_hc        # Skip if tracking black
             addi $t4, $t4, 1                        # Increment count
+            lw $s7, 4($t5)                          # Load next color
+            beq $s7, $t3, sc_cont_while_hc          # Check if next color is the same
             bge $t4, 4, sc_remove_hc                # Check if we have 4+ consecutive
             j sc_cont_while_hc
 
@@ -299,7 +383,24 @@ scan_consecutives:
             lw $s7, 0($t5)                             # Load current color
             beq $s7, $zero, sc_reset_count_vc          # If black, reset count
 
-            beq $s7, $t3, sc_increment_vc              # If same color, increment
+            # Check if colors match (including virus variants)
+            STORE_TO_STACK($t0)
+            STORE_TO_STACK($t1)
+            STORE_TO_STACK($t2)
+            STORE_TO_STACK($t3)
+            STORE_TO_STACK($t4)
+            STORE_TO_STACK($t5)
+            move $a0, $t3                           # First color (tracked)
+            move $a1, $s7                           # Second color (current)
+            jal check_matching_colors
+            RESTORE_FROM_STACK($t5)
+            RESTORE_FROM_STACK($t4)
+            RESTORE_FROM_STACK($t3)
+            RESTORE_FROM_STACK($t2)
+            RESTORE_FROM_STACK($t1)
+            RESTORE_FROM_STACK($t0)
+
+            beq $v0, 1, sc_increment_vc            # If colors match, increment
 
             # Different color (not black)
             move $t3, $s7                              # Track new color
@@ -309,6 +410,8 @@ scan_consecutives:
             sc_increment_vc:
             beq $t3, $zero, sc_cont_while_vc           # Skip if tracking black
             addi $t4, $t4, 1                           # Increment count
+            lw $s7, 128($t5)                          # Load next color
+            beq $s7, $t3, sc_cont_while_vc          # Check if next color is the same
             bge $t4, 4, sc_remove_vc                   # Check if we have 4+ consecutive
             j sc_cont_while_vc
 
