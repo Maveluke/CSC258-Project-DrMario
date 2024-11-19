@@ -188,6 +188,7 @@ game_end:
 ##############################################################################
 # Function to clear the screen
 # Clear screen to black
+# Registers changed: $t0, $t1, $t2
 clear_screen:
     lw $t0, ADDR_DSPL           # Load base address
     li $t1, 4096                # 64 * 64 pixels
@@ -209,6 +210,7 @@ clear_screen:
 # Pattern 2: 1 0
 #            1 0
 # Return value: $v0 = 1 (pattern 1) or $v0 = 2 (pattern 2)
+# Registers changed: $v0, $t1
 get_pattern:
     lw $t1, CURR_CAPSULE_STATE      # $t1 = color of the top left pixel
     beq $t1, 0, pattern_1           # Check if the top left pixel is black
@@ -225,6 +227,7 @@ get_pattern:
 # Function to handle capsule movement to the left (pressing a)
 # Assumption: The capsule position is valid before moving left
 # Note: The capsule can only move left if there is nothing on the left
+# Registers changed: $v0, $t0, $t1, $t9, $s0
 move_left:
     STORE_TO_STACK($ra)                 # Save the return address
     lw $t9, BLACK                       # $t9 = black
@@ -258,6 +261,7 @@ move_left:
 # Function to handle capsule movement to the right (pressing d)
 # Assumption: The capsule position is valid before moving right
 # Note: The capsule can only move right if there is nothing on the right
+# Registers changed: $v0, $t0, $t1, $t9, $s0
 move_right:
     STORE_TO_STACK($ra)                 # Save the return address
     lw $t9, BLACK                       # $t9 = black
@@ -301,6 +305,7 @@ move_right:
 # Assumption: The capsule position is valid before moving down
 # Note: The capsule can only move down if there is nothing below it
 # Return value: $v0 = 1 if the capsule block can't move down, $v0 = 0 otherwise
+# Registers changed: $v0, $t0, $t1, $t9, $s0
 move_down:
     STORE_TO_STACK($ra)                 # Save the return address
     lw $t9, BLACK                       # $t9 = black
@@ -340,6 +345,7 @@ move_down:
 # Function to rotate the capsule block clockwise (pressing w)
 # Assumption: The capsule position is valid before rotating
 # Note: The capsule can only rotate if it doesn't collide with other blocks
+# Registers changed: $v0, $t0, $t1, $t2, $t3, $t4, $t9
 rotate:
     STORE_TO_STACK($ra)                 # Save the return address
     lw $t9, BLACK                       # $t9 = black
@@ -397,6 +403,7 @@ rotate:
 # $a1 = Y coordinate of the starting point
 # $a2 = length of the line
 # $a3 = color of the line
+# Registers changed: $a0, $a1, $a2, $t0, $t1
 draw_vertical_line:
     # Calculate the address of the starting point
     lw $t0, ADDR_DSPL                   # $t0 = base address for display
@@ -425,6 +432,7 @@ draw_vertical_line:
 # $a1 = Y coordinate of the starting point
 # $a2 = length of the line
 # $a3 = color of the line
+# Registers changed: $a0, $a1, $a2, $t0, $t1
 draw_horizontal_line:
     # Calculate the address of the starting point
     lw $t0, ADDR_DSPL                   # $t0 = base address for display
@@ -453,6 +461,7 @@ draw_horizontal_line:
 # $a0 = X coordinate of the starting point
 # $a1 = Y coordinate of the starting point
 # $a2 = length of the line
+# Registers changed: $ra, $v0, $a0, $a3
 remove_consecutives_v:
     STORE_TO_STACK($ra)
 
@@ -500,6 +509,7 @@ remove_consecutives_v:
 
 ##############################################################################
 # Function to draw the bottle
+# Registers changed: $ra, $a0, $a1, $a2, $a3, $s6, $s7
 draw_bottle:
     # Save the return address $ra
     STORE_TO_STACK($ra)
@@ -618,6 +628,7 @@ draw_bottle:
 # $a3 - y coordinate
 # Returns:
 # $v0 - pixel address
+# Registers changed: $ra, $v0, $a2, $a3, $t1
 calculate_pixel_address:
     # Save return address
     STORE_TO_STACK($ra)
@@ -641,7 +652,7 @@ calculate_pixel_address:
 ##############################################################################
 # Function to initialize the capsule state
 # Assumption: The capsule inside the capsule block are fit into empty space in the bitmap
-# Registers used: $t0, $t1
+# Registers changed: $t0, $t1
 init_capsule_state:
     la $t0, NEXT_CAPSULE_STATE      # $t0 = base address
 
@@ -660,7 +671,7 @@ init_capsule_state:
 # Parameters:
 # $a0 - position offset (0, 4, 8, or 12)
 # $a1 - color to set
-# Registers used: $a0, $a1, $t0
+# Registers changed: $a1, $t0
 set_capsule_color:
     la $t0, NEXT_CAPSULE_STATE      # $t0 = base address
     add $t0, $t0, $a0               # Add offset to base address
@@ -674,6 +685,7 @@ set_capsule_color:
 # $a0 - position offset (0, 4, 8, or 12)
 # Returns:
 # $v0 - color at position
+# Registers changed: $v0, $t0
 get_capsule_color:
     la $t0, CURR_CAPSULE_STATE      # $t0 = base address
     add $t0, $t0, $a0               # Add offset to base address
@@ -683,6 +695,7 @@ get_capsule_color:
 
 ##############################################################################
 # Function to randomly set two colors at the starting point ($s0)
+# Registers changed: $ra, $v0, $a0, $a1, $t2, $t3
 generate_random_capsule_colors:
     # Save return address
     STORE_TO_STACK($ra)
@@ -715,7 +728,7 @@ generate_random_capsule_colors:
 # The location of the capsule is stored in $s0
 # The color of the 2x2 box for the capsule is stored in curr_capsule_state
 # Return value: $v0 = 1 if can't add new capsule, $v0 = 0 otherwise
-# Registers used: $v0, $t0, $t1, $t2, $t3, $t4, $t5, $t9, $s0
+# Registers changed: $v0, $t0, $t1, $t2, $t3, $t4, $t5, $t9, $s0
 draw_capsule:
     STORE_TO_STACK($ra)
     move $t0, $s0                   # Set the starting address for the capsule stored in $s0
@@ -755,6 +768,7 @@ draw_capsule:
 ##############################################################################
 # Function to remove the capsule from the display
 # The location of the capsule is stored in $s0
+# Registers changed: $v0, $t7, $t8, $s0
 remove_capsule:
     STORE_TO_STACK($ra)
     move $t7, $s0               # t7 = starting address for the capsule stored in $s0
@@ -781,12 +795,13 @@ remove_capsule:
 
 ##############################################################################
 # Function to draw a capsule on the display
-# The location of the capsule is stored in $s0
+# The location of the capsule is stored in ADDR_NEXT_CAPSULE
 # The color of the 2x2 box for the capsule is stored in NEXT_CAPSULE_STATE
+# Registers changed: $t0, $t1, $t2, $t3, $t4, $t5
 draw_next_capsule:
     STORE_TO_STACK($ra)
 
-    lw $t0, ADDR_NEXT_CAPSULE       # Set the starting address for the capsule stored in $s0
+    lw $t0, ADDR_NEXT_CAPSULE       # Set the starting address for the capsule stored in ADDR_NEXT_CAPSULE
     la $t1, NEXT_CAPSULE_STATE      # Set the current color palette
     lw $t2, 0($t1)                  # Set the top left color
     lw $t3, 4($t1)                  # Set the top right color
@@ -804,7 +819,7 @@ draw_next_capsule:
 
 ##############################################################################
 # Function to set a new capsule to the next capsule state
-# Registers used: s0, t0, t1, t2, t3
+# Registers changed: s0, t0, t1, t2, t3
 set_new_capsule:
     # Set $s0 to start address
     lw $s0, ADDR_START_CAPSULE
@@ -826,6 +841,7 @@ set_new_capsule:
 ##############################################################################
 # Function to return random color
 # Return value: $v0 = color generated
+# Registers changed: $v0, $a0, $a1
 generate_random_color:
     # Generate a random number from 0 - 2 inclusive, and put the result in $a0
     li $v0, 42                      # syscall 42: generate random number
@@ -859,6 +875,7 @@ generate_random_color:
 ##############################################################################
 # Function to return random virus color
 # Return value: $v0 = color generated
+# Registers changed: $v0, $a0, $a1
 generate_random_virus_color:
     # Generate a random number from 0 - 2 inclusive, and put the result in $a0
     li $v0, 42                      # syscall 42: generate random number
@@ -886,6 +903,7 @@ generate_random_virus_color:
 ##############################################################################
 # Function to draw viruses
 # Assumption: There's nothing on the grid right now
+# Registers changed: $ra, $v0, $a0, $a1, $t0, $t1, $t2, $t3, $t4, $t5, $t6
 draw_viruses:
     STORE_TO_STACK($ra)
     li $t5, 0                                           # $t5 = loop counter
@@ -969,6 +987,17 @@ scan_falling_capsules:
                 lw $t1, ADDR_DSPL                   # $t1 = base address for display
                 add $t1, $t1, $s4                   # $t1 = address of the current capsule
 
+                # Check if current pixel is a capsule (either RED, GREEN, or BLUE)
+                lw $t0, 0($t1)                      # $t0 = color of the current pixel
+                lw $t1, RED                         # $t1 = red
+                beq $t0, $t1, sfc_start_row_loop    # Check if the current pixel is red
+                lw $t1, GREEN                       # $t1 = green
+                beq $t0, $t1, sfc_start_row_loop    # Check if the current pixel is green
+                lw $t1, BLUE                        # $t1 = blue
+                beq $t0, $t1, sfc_start_row_loop    # Check if the current pixel is blue
+                j sfc_row_loop_end                  # The current pixel is not a capsule
+
+                sfc_start_row_loop:
                 # Find address of the other half of the current capsule
                 la $s5, ALLOC_OFFSET_CAPSULE_HALF   # $s5 = pointer to offset of the other half of the top left pixel, relative to base bitmap
                 add $s5, $s5, $s4                   # $s5 = pointer to offset of the other half of the current pixel, relative to base bitmap
