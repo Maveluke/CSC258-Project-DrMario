@@ -169,7 +169,10 @@ game_loop:
 
     handle_remove_consecutives:
         jal scan_consecutives
-        beq $v0, 1, scan_falling_capsules
+        beq $v0, 1, handle_falling
+        j generate_new_capsule
+    handle_falling:
+        jal scan_falling_capsules
         j generate_new_capsule
     after_handling_move:
     # 2a. Check for collisions
