@@ -89,7 +89,7 @@ NEXT_CAPSULE_STATE:
 CURR_CAPSULE_STATE:
     .space 16
 
-# s0: Current capsule block's top left pixel address
+# s0: Current capsule block's top left pixel address in the bitmap
 # s1: The current number of viruses in the bottle
 
 PREV_BITMAP:
@@ -588,8 +588,9 @@ move_right:
 # Function to handle capsule movement down (pressing s)
 # Assumption: The capsule position is valid before moving down
 # Note: The capsule can only move down if there is nothing below it
+# Clarification: base bitmap = base address for bitmap (top left pixel of the bitmap)
+# Registers changed: $v0, $t0, $t1, $t2, $t3, $t4 $t9, $s0
 # Return value: $v0 = 1 if the capsule block can't move down, $v0 = 0 otherwise
-# Registers changed: $v0, $t0, $t1, $t9, $s0
 move_down:
     STORE_TO_STACK($ra)                 # Save the return address
     lw $t9, BLACK                       # $t9 = black
@@ -611,13 +612,44 @@ move_down:
     j md_can_move                       # The bottom right pixel of the capsule block also can move down
 
     md_can_move:
-        jal remove_capsule
+        jal remove_capsule              # Remove the current capsule block
         addi $s0, $s0, 128              # Move the capsule block down by 1 pixel
-        jal draw_capsule
-        li $v0, 0                       # The capsule block can move down
+        jal draw_capsule                # Draw the capsule block at the new position
+        li $v0, 0                       # $v0 = 0 since the capsule block can move down
         j md_end
     md_cant_move:
-        li $v0, 1                       # The capsule block can't move down
+        # Store the offsets of both halves of the capsule block in AOCH
+        jal get_pattern                 # Get the pattern of the current capsule block
+        la $t0, ALLOC_OFFSET_CAPSULE_HALF
+        beq $v0, 1, md_cant_move_1      # Check if the pattern is 1
+        j md_cant_move_2                # The pattern is 2
+        md_cant_move_1:
+            # Find the offset of the bottom left and bottom right pixels, relative to the base bitmap
+            move $t0, $s0               # $t0 = address of the top left pixel of the capsule block
+            lw $t1, ADDR_DSPL           # $t1 = base address for display
+            sub $t0, $t0, $t1           # $t0 = offset of the top left pixel from the base bitmap
+            addi $t2, $t0, 128          # $t2 = offset of the bottom left pixel from the base bitmap
+            addi $t3, $t0, 132          # $t3 = offset of the bottom right pixel from the base bitmap
+            # Store the offsets in AOCH
+            la $t1, ALLOC_OFFSET_CAPSULE_HALF   # $t1 = base address of AOCH
+            add $t4, $t1, $t3           # $t4 = address of the bottom right pixel's AOCH
+            sw $t2, 0($t4)              # Store the offset of the bottom left pixel in bottom right pixel's AOCH
+            add $t4, $t1, $t2           # $t4 = address of the bottom left pixel's AOCH
+            sw $t3, 0($t4)              # Store the offset of the bottom right pixel in bottom left pixel's AOCH
+        md_cant_move_2:
+            # Find the offset of the top left and bottom left pixels, relative to the base bitmap
+            move $t0, $s0               # $t0 = address of the top left pixel of the capsule block
+            lw $t1, ADDR_DSPL           # $t1 = base address for display
+            sub $t2, $t0, $t1           # $t2 = offset of the top left pixel from the base bitmap
+            addi $t3, $t2, 128          # $t3 = offset of the bottom left pixel from the base bitmap
+            # Store the offsets in AOCH
+            la $t1, ALLOC_OFFSET_CAPSULE_HALF   # $t1 = base address of AOCH
+            add $t4, $t1, $t3           # $t4 = address of the bottom left pixel's AOCH
+            sw $t2, 0($t4)              # Store the offset of the top left pixel in bottom left pixel's AOCH
+            add $t4, $t1, $t2           # $t4 = address of the top left pixel's AOCH
+            sw $t3, 0($t4)              # Store the offset of the bottom left pixel in top left pixel's AOCH
+
+        li $v0, 1                       # $v0 = 1 since the capsule block can't move down
         j md_end
     md_end:
         # Return to the calling program
