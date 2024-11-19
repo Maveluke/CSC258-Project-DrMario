@@ -238,7 +238,8 @@ scan_consecutives:
             lw $s7, 0($t5)                              # s7 = current pixel color
             beq $s7, $t3, sc_increment_hc            # Check if the current pixel color is the same as the stored color
             j sc_track_remove_hc
-            sc_increment_hc:                       # Increase counter
+            sc_increment_hc:                            # Increase counter if the current pixel color is the same as the stored color and is not black
+            beq $t3, $zero, sc_cont_while_hc             # If the current pixel color is black, don't increment the counter
             addi $t4, $t4, 1
             j sc_cont_while_hc
             sc_track_remove_hc:
@@ -286,7 +287,8 @@ scan_consecutives:
             lw $s7, 0($t5)                              # s7 = current pixel color
             beq $s7, $t3, sc_increment_vr               # Check if the current pixel color is the same as the stored color
             j sc_track_remove_vr
-            sc_increment_vr:                            # Increase counter
+            sc_increment_vr:                            # Increase counter if the current pixel color is the same as the stored color and is not black
+            beq $t3, $zero, sc_cont_while_vr             # If the current pixel color is black, don't increment the counter
             addi $t4, $t4, 1
             j sc_cont_while_vr                          # Continue scanning vertically
             sc_track_remove_vr:
