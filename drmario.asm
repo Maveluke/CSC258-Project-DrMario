@@ -161,7 +161,7 @@ game_loop:
         j after_handling_move
     handle_move_down:
         jal move_down
-        beq $v0, 1, handle_remove_consecutives
+        beq $v0, 1, handle_remove_consecutives  # If the capsule can't move down, check for any consecutive color pixels
         j after_handling_move
     handle_move_right:
         jal move_right
@@ -1244,7 +1244,7 @@ draw_viruses:
 # Function to check for falling capsules (in the entire bottle)
 # Run a single vertical scan (from bottom to top) for each column, from the
 # leftmost column to the rightmost column
-# Registers changed: $ra, $a0, $a1, $s3, $s4 $s5, $s6, $s7, $t0, $t1, $t2
+# Registers changed: $ra, $a0, $a1, $s3, $t0, $t1, $t2, $s3, $s4 $s5, $s6, $s7
 # Persistent registers (throughout this function):
 # - $s3 = 1 if current outer loop has at least one falling capsule, 0 otherwise
 # - $s4 = offset of the current capsule position, relative to base bitmap
@@ -1254,7 +1254,9 @@ draw_viruses:
 # Clarification: 
 # - base bottle = top left pixel of the bottle
 # - base bitmap = base address for bitmap (top left pixel of the bitmap)
+# Return value: $v1 = 1 if there is at least one falling capsule, 0 otherwise
 scan_falling_capsules:
+    li $v1, 0                                   # $v1 = 0 (reset return value)
     STORE_TO_STACK($ra)
     STORE_TO_STACK($s3)
     STORE_TO_STACK($s4)
@@ -1304,14 +1306,14 @@ scan_falling_capsules:
                 sfc_half_capsule:
                     move $a0, $s4                   # $a0 = offset of the current capsule, relative to base bitmap
                     jal move_down_half_capsule      # Move the current capsule down by 1 pixel until it can't move down anymore
-                    beq $v1, 1, sfc_falling         # Check if there is at least one falling capsule
+                    beq $v0, 1, sfc_falling         # Check if there is at least one falling capsule
                     j sfc_row_loop_end
 
                 sfc_full_capsule:
                     move $a0, $s4                   # $a0 = offset of the current capsule, relative to base bitmap
                     move $a1, $s5                   # $a1 = offset of the other half of the current capsule, relative to base bitmap
                     jal move_down_full_capsule      # Move the current capsule and its other half down by 1 pixel until they can't move down anymore
-                    beq $v1, 1, sfc_falling         # Check if there is at least one falling capsule
+                    beq $v0, 1, sfc_falling         # Check if there is at least one falling capsule
                     j sfc_row_loop_end
 
                 sfc_falling:
@@ -1325,28 +1327,33 @@ scan_falling_capsules:
             addi $s6, $s6, 1                        # Move to the next column (increment the column counter)
             bne $s6, $t0, sfc_col_loop              # Repeat until the rightmost column is reached
 
-    bne $s3, $zero, sfc_main_loop           # Repeat if there is at least one falling capsule
-    RESTORE_FROM_STACK($s7)
-    RESTORE_FROM_STACK($s6)
-    RESTORE_FROM_STACK($s5)
-    RESTORE_FROM_STACK($s4)
-    RESTORE_FROM_STACK($s3)
-    RESTORE_FROM_STACK($ra)
-    jr $ra
+    bne $s3, $zero, sfc_next_loop                   # Check if there is at least one falling capsule
+    j sfc_end                                       # There's no falling capsule, end the loop
+    sfc_next_loop:
+        li $v1, 1                                   # $v1 = 1 since there is at least one falling capsule
+        j sfc_main_loop                             # Repeat until there's no falling capsule
+    sfc_end:
+        RESTORE_FROM_STACK($s7)
+        RESTORE_FROM_STACK($s6)
+        RESTORE_FROM_STACK($s5)
+        RESTORE_FROM_STACK($s4)
+        RESTORE_FROM_STACK($s3)
+        RESTORE_FROM_STACK($ra)
+        jr $ra
 
 
 ##############################################################################
 # Function to move a half capsule down by 1 pixel until it can't move down anymore
 # Parameters: $a0 = half capsule's offset, relative to base bitmap
-# Return value: $v1 = 1 if at least the half capsule move once, $v1 = 0 otherwise
-# Registers changed: $v1, $t0, $t1, $t2, $t3
+# Return value: $v0 = 1 if at least the half capsule move once, $v0 = 0 otherwise
+# Registers changed: $v0, $t0, $t1, $t2, $t3
 # Clarification:
 # - base = top left pixel of the bottle
 # - base bitmap = base address for display (top left pixel of the bitmap)
 # - half capsule: the half capsule that is being moved down
 move_down_half_capsule:
     STORE_TO_STACK($a0)
-    li $v1, 0                           # $v1 = 0
+    li $v0, 0                           # $v0 = 0
     # Set $t0 = address of the half capsule on the bitmap
     lw $t0, ADDR_DSPL                   # $t0 = base address for display
     add $t0, $t0, $a0                   # $t0 += the half capsule's offset from the base
@@ -1356,15 +1363,17 @@ move_down_half_capsule:
         lw $t3, 128($t0)                # $t3 = color of the pixel below the half capsule
         bne $t3, $t2, mdhc_end          # Check if the pixel below the half capsule is occupied
         # The pixel below the half capsule is empty, move the half capsule down by 1 pixel
-        li $v1, 1                       # At least the half capsule move once, set return value to 1
+        li $v0, 1                       # At least the half capsule move once, set return value to 1
         sw $t1, 128($t0)                # Draw the color of the half capsule at the new position
         sw $t2, 0($t0)                  # Draw black in the current pixel
         addi $t0, $t0, 128              # $t0 = new address of the half capsule
 
         # Sleep for a while
+        STORE_TO_STACK($v0)
         li $v0, 32                      # syscall 32: sleep
         li $a0, 100                     # Sleep for 100 ms
         syscall
+        RESTORE_FROM_STACK($v0)
 
         j mdhc_loop                     # Repeat until the half capsule can't move down anymore
     mdhc_end:
@@ -1378,8 +1387,8 @@ move_down_half_capsule:
 # Parameters:
 # - $a0 = half capsule's offset from the base bitmap
 # - $a1 = other half capsule's offset from the base bitmap
-# Return value: $v1 = 1 if at least the half capsule move once, $v1 = 0 otherwise
-# Registers changed: $v1, $t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7
+# Return value: $v0 = 1 if at least the half capsule move once, $v0 = 0 otherwise
+# Registers changed: $v0, $t0, $t1, $t2, $t3, $t4, $t5, $t6, $t7
 # Clarification:
 # - base = top left pixel of the bottle
 # - base bitmap = base address for display (top left pixel of the bitmap)
@@ -1387,7 +1396,7 @@ move_down_half_capsule:
 move_down_full_capsule:
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
-    li $v1, 0                               # $v1 = 0
+    li $v0, 0                               # $v0 = 0
     # Set $t0 = address of the half capsule on the bitmap
     lw $t0, ADDR_DSPL                       # $t0 = base address for display
     add $t0, $t0, $a0                       # $t0 += the half capsule's offset from the base
@@ -1404,7 +1413,7 @@ move_down_full_capsule:
         lw $t5, 128($t1)                    # $t5 = color of the pixel below the other half capsule
         bne $t5, $t3, mdfc_end              # Check if the pixel below the other half of the half capsule is occupied
         # The pixel below the other half of the half capsule is empty, move the half capsule and its other half down by 1 pixel
-        li $v1, 1                           # At least the half capsule move once, set return value to 1
+        li $v0, 1                           # At least the half capsule move once, set return value to 1
         sw $t2, 128($t0)                    # Draw the color of the half capsule at the new position
         sw $t3, 0($t0)                      # Draw black in the current pixel
         sw $t4, 128($t1)                    # Draw the color of the other half of the half capsule at the new position
@@ -1425,9 +1434,11 @@ move_down_full_capsule:
         sw $t7, 128($t4)                    # Set the new offset of the other half capsule to reflect new position
 
         # Sleep for a while
+        STORE_TO_STACK($v0)
         li $v0, 32                          # syscall 32: sleep
         li $a0, 100                         # Sleep for 100 ms
         syscall
+        RESTORE_FROM_STACK($v0)
 
         j mdfc_loop                         # Repeat until the half capsule and its other half can't move down anymore
     mdfc_end:
