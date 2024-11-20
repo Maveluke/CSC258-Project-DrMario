@@ -113,6 +113,9 @@ VIRUS_COUNT:
 main:
     # Reset all ALLOC_OFFSET_CAPSULE_HALF values to 0
     la $t0, ALLOC_OFFSET_CAPSULE_HALF       # Load array address
+    li $v0, 34
+    move $a0, $t0
+    syscall
     li $t1, 1024                            # Number of words (4096/4)
     clear:
         sw $zero, 0($t0)                    # Store 0
