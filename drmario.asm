@@ -1640,7 +1640,57 @@ move_down_full_capsule:
     # Set $t1 = address of the other half capsule on the bitmap
     lw $t1, ADDR_DSPL                       # $t1 = base address for display
     add $t1, $t1, $a1                       # $t1 += the other half capsule's offset from the base
-    mdfc_loop:
+
+    # Check if the capsule is in vertical position
+    sub $t2, $t1, $t0                       # $t2 = $t1 - $t0
+    beq $t2, 128, mdfc_loop_vertical        # Check if $t1 is below $t0 => vertical
+    sub $t2, $t0, $t1                       # $t2 = $t0 - $t1
+    beq $t2, 128, mdfc_vertical_swap        # Check if $t0 is below $t1 => vertical
+    j mdfc_loop_horizontal                  # The half capsule is in horizontal position
+
+    mdfc_vertical_swap:
+        move $t2, $t0                       # $t2 = $t0
+        move $t0, $t1                       # $t0 = $t1
+        move $t1, $t2                       # $t1 = $t0
+        j mdfc_loop_vertical                # Swap to make sure $t0 is above $t1 before going to the loop
+    
+    mdfc_loop_vertical:
+        # Format: $t0
+        #         $t1 ($t0 above $t1)
+        lw $t2, 0($t0)                      # $t2 = color of the upper half capsule
+        lw $t3, 0($t1)                      # $t3 = color of the lower half capsule
+        lw $t4, 128($t1)                    # $t4 = color of the pixel below the full capsule
+        lw $t5, BLACK                       # $t5 = black
+        bne $t4, $t5, mdfc_end              # Check if the pixel below the full capsule is occupied
+        # The pixel below the full capsule is empty, check if the other half of the full capsule can move down
+        li $v0, 1                           # At least the half capsule move once, set return value to 1
+        sw $t5, 0($t0)                      # Draw black in the current pixel
+        sw $t2, 128($t0)                    # Draw the color of the upper half capsule at the new position
+        sw $t3, 128($t1)                    # Draw the color of the lower half capsule at the new position
+        # Update the ALLOC_OFFSET_CAPSULE_HALF to the new position of both half capsules
+        addi $t0, $t0, 128                  # $t0 = new address of the upper half capsule
+        addi $t1, $t1, 128                  # $t1 = new address of the lower half capsule
+        la $t2, ALLOC_OFFSET_CAPSULE_HALF   # $t2 = pointer to base address in AOCH
+        add $t3, $t2, $a0                   # $t3 = pointer to old offset of the upper half capsule in AOCH
+        add $t4, $t2, $a1                   # $t4 = pointer to old offset of the lower half capsule in AOCH
+        sw $zero, 0($t3)                    # Set the old offset of the lower half capsule to 0
+        sw $zero, 0($t4)                    # Set the old offset of the upper half capsule to 0
+        lw $t5, ADDR_DSPL                   # $t5 = base address for display
+        sub $t6, $t0, $t5                   # Convert first address to offset
+        sub $t7, $t1, $t5                   # Convert second address to offset
+        sw $t6, 128($t3)                    # Set the new offset of the upper half capsule to reflect new position
+        sw $t7, 128($t4)                    # Set the new offset of the lower half capsule to reflect new position
+
+        # Sleep for a while
+        STORE_TO_STACK($v0)
+        li $v0, 32                          # syscall 32: sleep
+        li $a0, 100                         # Sleep for 100 ms
+        syscall
+        RESTORE_FROM_STACK($v0)
+
+        j mdfc_loop_vertical                # Repeat until the half capsule and its other half can't move down anymore
+
+    mdfc_loop_horizontal:
         lw $t2, 0($t0)                      # $t2 = color of the half capsule
         lw $t3, BLACK                       # $t3 = black
         lw $t4, 128($t0)                    # $t4 = color of the pixel below the half capsule
@@ -1655,10 +1705,9 @@ move_down_full_capsule:
         sw $t3, 0($t0)                      # Draw black in the current pixel
         sw $t4, 128($t1)                    # Draw the color of the other half of the half capsule at the new position
         sw $t3, 0($t1)                      # Draw black in the current pixel
-        # Move both half capsules down by 1 pixel
+        # Update the ALLOC_OFFSET_CAPSULE_HALF to the new position of both half capsules
         addi $t0, $t0, 128                  # $t0 = new address of the half capsule
         addi $t1, $t1, 128                  # $t1 = new address of the other half capsule
-        # Update the ALLOC_OFFSET_CAPSULE_HALF to the new position of both half capsules
         la $t2, ALLOC_OFFSET_CAPSULE_HALF   # $t2 = pointer to base address in AOCH
         add $t3, $t2, $a0                   # $t3 = pointer to old offset of the half capsule in AOCH
         add $t4, $t2, $a1                   # $t4 = pointer to old offset of the other half capsule in AOCH
@@ -1677,7 +1726,7 @@ move_down_full_capsule:
         syscall
         RESTORE_FROM_STACK($v0)
 
-        j mdfc_loop                         # Repeat until the half capsule and its other half can't move down anymore
+        j mdfc_loop_horizontal              # Repeat until the half capsule and its other half can't move down anymore
     mdfc_end:
         RESTORE_FROM_STACK($a1)
         RESTORE_FROM_STACK($a0)
