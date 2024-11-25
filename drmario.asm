@@ -55,7 +55,7 @@ BLACK:
 ADDR_NEXT_CAPSULE:
     .word 0x100084b0
 ADDR_START_CAPSULE:
-    .word 0x100086a0
+    .word 0x100084a0
 BOTTLE_TL_X:
     .word 3
 BOTTLE_TL_Y:
@@ -141,6 +141,41 @@ game_loop:
     # Initialize the new capsule
     jal set_new_capsule
     jal draw_capsule
+    li $v0, 32
+   	li $a0, 50
+   	syscall
+    jal rotate
+    li $v0, 32
+   	li $a0, 50
+   	syscall
+    jal move_down
+
+    li $v0, 32
+   	li $a0, 50
+   	syscall
+    jal rotate
+    li $v0, 32
+   	li $a0, 50
+   	syscall
+    jal move_down
+
+    li $v0, 32
+   	li $a0, 50
+   	syscall
+    jal rotate
+    li $v0, 32
+   	li $a0, 50
+   	syscall
+    jal move_down
+
+    li $v0, 32
+   	li $a0, 50
+   	syscall
+    jal rotate
+    li $v0, 32
+   	li $a0, 50
+   	syscall
+    jal move_down
 
     # Check if the new capsule can move down
     beq $v0, 1, game_end
