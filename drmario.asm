@@ -157,6 +157,7 @@ game_loop:
     bne $t1, 1, gl_after_generate       # If the first word is not 1, no key is pressed
     # 1b. Check which key has been pressed
     lw $t1, 4($t0)                      # $t1 = key pressed (second word from keyboard)
+    beq $t1, 0x70, handle_pause         # Check if the key is 'p'
     beq $t1, 0x71, game_end             # Check if the key is 'q'
     beq $t1, 0x77, handle_rotate        # Check if the key is 'w'
     beq $t1, 0x61, handle_move_left     # Check if the key is 'a'
@@ -1730,4 +1731,84 @@ move_down_full_capsule:
     mdfc_end:
         RESTORE_FROM_STACK($a1)
         RESTORE_FROM_STACK($a0)
+        jr $ra
+
+
+##############################################################################
+# Function to draw pause icon at the top left corner of the screen
+# Registers changed: $t0, $t1
+draw_pause:
+    lw $t0, ADDR_DSPL                   # $t0 = base address for display
+    lw $t1, WHITE                       # $t1 = white
+    sw $t1, 16($t0)
+    sw $t1, 20($t0)
+    sw $t1, 24($t0)
+    sw $t1, 140($t0)
+    sw $t1, 156($t0)
+    sw $t1, 264($t0)
+    sw $t1, 288($t0)
+    sw $t1, 388($t0)
+    sw $t1, 400($t0)
+    sw $t1, 408($t0)
+    sw $t1, 420($t0)
+    sw $t1, 516($t0)
+    sw $t1, 528($t0)
+    sw $t1, 536($t0)
+    sw $t1, 548($t0)
+    sw $t1, 648($t0)
+    sw $t1, 672($t0)
+    sw $t1, 780($t0)
+    sw $t1, 796($t0)
+    sw $t1, 912($t0)
+    sw $t1, 916($t0)
+    sw $t1, 920($t0)
+    jr $ra
+
+
+##############################################################################
+# Function to delete pause icon from the top left corner of the screen
+delete_pause:
+    lw $t0, ADDR_DSPL                   # $t0 = base address for display
+    lw $t1, BLACK                       # $t1 = black
+    sw $t1, 16($t0)
+    sw $t1, 20($t0)
+    sw $t1, 24($t0)
+    sw $t1, 140($t0)
+    sw $t1, 156($t0)
+    sw $t1, 264($t0)
+    sw $t1, 288($t0)
+    sw $t1, 388($t0)
+    sw $t1, 400($t0)
+    sw $t1, 408($t0)
+    sw $t1, 420($t0)
+    sw $t1, 516($t0)
+    sw $t1, 528($t0)
+    sw $t1, 536($t0)
+    sw $t1, 548($t0)
+    sw $t1, 648($t0)
+    sw $t1, 672($t0)
+    sw $t1, 780($t0)
+    sw $t1, 796($t0)
+    sw $t1, 912($t0)
+    sw $t1, 916($t0)
+    sw $t1, 920($t0)
+    jr $ra
+
+
+##############################################################################
+# Function to handle pause screen
+handle_pause:
+    STORE_TO_STACK($ra)
+    jal draw_pause
+    pause_loop:
+        lw $t0, ADDR_KBRD                   # $t0 = base address for keyboard
+        lw $t1, 0($t0)                      # $t1 = first word from keyboard
+        bne $t1, 1, pause_loop              # If the first key is not 1, no key is pressed
+        # A key is pressed, check if it is p (pause key)
+        lw $t1, 4($t0)                  # $t1 = keyboard input
+        beq $t1, 0x70, pause_end        # If the key is p, end the pause screen
+        j pause_loop
+    pause_end:
+        jal delete_pause
+        RESTORE_FROM_STACK($ra)
         jr $ra
