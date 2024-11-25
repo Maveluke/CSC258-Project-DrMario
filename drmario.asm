@@ -77,6 +77,8 @@ ADDR_GRID_START:
     .word 0x1000868c  # 13 * (32 * 4) + 3 * 4 => 1676 + 0x10008000
 OFFSET_FROM_TOP_LEFT:
     .word 1676
+SLEEP_PER_LOOP:
+    .word 10
 
 ##############################################################################
 # Mutable Data
@@ -89,6 +91,7 @@ CURR_CAPSULE_STATE:
 
 # s0: Current capsule block's top left pixel address in the bitmap
 # s1: The current number of viruses in the bottle
+# s2: The number of frames since last capsule movement caused by gravity (i.e. move down once per second)
 
 PREV_BITMAP:
     .space 4096
@@ -101,6 +104,7 @@ ALLOC_OFFSET_CAPSULE_HALF:
 # Integer storing the number of viruses in the bottle
 VIRUS_COUNT:
     .word 4
+
 ##############################################################################
 # Code
 ##############################################################################
@@ -127,6 +131,9 @@ main:
     # Initialize the viruses
     lw $s1, VIRUS_COUNT         # $s1 = initial number of viruses
     jal draw_viruses            # Draw the viruses
+
+    # Initialize the number of frames since last capsule movement caused by gravity
+    li $s2, 0
 
     # Initialize the next capsule state
     lw $a3, ADDR_NEXT_CAPSULE
@@ -189,7 +196,7 @@ game_loop:
     # 1a. Check if key has been pressed
     lw $t0, ADDR_KBRD                   # $t0 = base address for keyboard
     lw $t1, 0($t0)                      # Load first word from keyboard
-    bne $t1, 1, gl_after_generate       # If the first word is not 1, no key is pressed
+    bne $t1, 1, after_handling_move     # If the first word is not 1, no key is pressed
     # 1b. Check which key has been pressed
     lw $t1, 4($t0)                      # $t1 = key pressed (second word from keyboard)
     beq $t1, 0x70, handle_pause         # Check if the key is 'p'
@@ -200,7 +207,10 @@ game_loop:
     beq $t1, 0x64, handle_move_right    # Check if the key is 'd'
     beq $t1, 0x72, handle_reset         # Check if the key is 'r'
     beq $t1, 0x7a, debug_change_capsule # Check if the key is 'z' TODO: delete this for production
-    j gl_after_generate                 # Invalid key pressed, get another key
+    j after_handling_move               # Invalid key pressed
+    handle_pause:
+        jal pause
+        j after_handling_move
     handle_rotate:
         jal rotate
         j after_handling_move
@@ -236,13 +246,19 @@ game_loop:
 	# 3. Draw the screen
 	# 4. Sleep
 	li $v0, 32
-	li $a0, 16
+	lw $a0, SLEEP_PER_LOOP
 	syscall
 
-    j gl_after_generate
+    # Increment the number of frames since last capsule movement caused by gravity
+    addi $s2, $s2, 1
+    bne $s2, 60, gl_after_generate          # If the number of frames since last capsule movement caused by gravity is less than 60, go to the next loop without generating a new capsule
+    # Gravity - move the capsule down
+    jal move_down
+    li $s2, 0
+    beq $v0, 1, handle_remove_consecutives  # If the capsule can't move down, check for any consecutive color pixels
+
     # 5. Go back to Step 1
-
-
+    j gl_after_generate
 
     generate_new_capsule:
         # If there's no more viruses, end the game
@@ -892,7 +908,6 @@ remove_consecutives_v:
         RESTORE_FROM_STACK($t0)
 
         beq $v0, $zero, not_virus_v
-        addi $s2, $s2, 1        # Increment virus counter if virus found
         addi $s1, $s1, -1       # Decrement total virus count
 
         not_virus_v:
@@ -999,7 +1014,6 @@ remove_consecutives_h:
         RESTORE_FROM_STACK($t0)
 
         beq $v0, $zero, not_virus_h
-        addi $s2, $s2, 1        # Increment virus counter if virus found
         addi $s1, $s1, -1       # Decrement total virus count
 
         not_virus_h:
@@ -1832,7 +1846,7 @@ delete_pause:
 
 ##############################################################################
 # Function to handle pause screen
-handle_pause:
+pause:
     STORE_TO_STACK($ra)
     jal draw_pause
     pause_loop:
