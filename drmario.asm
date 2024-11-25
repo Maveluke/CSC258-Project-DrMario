@@ -28,6 +28,16 @@
     addi $sp, $sp, 4        # increment stack pointer by 4 bytes (1 word)
 .end_macro
 
+.macro CLEAR_ALL_KEYBOARD_INPUTS()
+    lw $t0, ADDR_KBRD        # Load keyboard controller address
+    clear_loop:
+        lw $t1, 0($t0)          # Check if there's input ready
+        bne $t1, 1, done        # If no input ready, we're done
+        lw $t1, 4($t0)          # Read (and discard) the input
+        j clear_loop            # Check for more inputs
+    done:
+.end_macro
+
     .data
 ##############################################################################
 # Immutable Data
@@ -177,6 +187,7 @@ game_loop:
    	syscall
     jal move_down
 
+    CLEAR_ALL_KEYBOARD_INPUTS()
     # Check if the new capsule can move down
     beq $v0, 1, game_end
 
@@ -1847,3 +1858,307 @@ handle_pause:
         jal delete_pause
         RESTORE_FROM_STACK($ra)
         jr $ra
+
+##############################################################################
+# Function to draw score change animation
+# Parameters:
+# - $a2 = score change
+# - $a3 = where to draw the score change in the display (in address)
+draw_blink_blink:
+    STORE_TO_STACK($ra)
+    li $t0, 0x888888                    # $t0 = gray
+    li $t1, 0xaaaaaa                    # $t1 = light gray
+    lw $t2, BLACK                       # $t2 = black
+
+    sw $t0, 0($a3)                      # Draw gray in the current pixel
+    sw $t0, 128($a3)                    # Draw gray in one pixel below
+    sw $t0, 256($a3)                    # Draw gray in two pixels below
+    sw $t0, 384($a3)                    # Draw gray in three pixels below
+    sw $t0, 512($a3)                    # Draw gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t0, 4($a3)                      # Draw gray in the current pixel
+    sw $t0, 132($a3)                    # Draw gray in one pixel below
+    sw $t0, 260($a3)                    # Draw gray in two pixels below
+    sw $t0, 388($a3)                    # Draw gray in three pixels below
+    sw $t0, 516($a3)                    # Draw gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t0, 8($a3)                      # Draw gray in the current pixel
+    sw $t0, 136($a3)                    # Draw gray in one pixel below
+    sw $t0, 264($a3)                    # Draw gray in two pixels below
+    sw $t0, 392($a3)                    # Draw gray in three pixels below
+    sw $t0, 520($a3)                    # Draw gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t1, 0($a3)                      # Draw light gray in the current pixel
+    sw $t1, 128($a3)                    # Draw light gray in one pixel below
+    sw $t1, 256($a3)                    # Draw light gray in two pixels below
+    sw $t1, 384($a3)                    # Draw light gray in three pixels below
+    sw $t1, 512($a3)                    # Draw light gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t1, 4($a3)                      # Draw light gray in the current pixel
+    sw $t1, 132($a3)                    # Draw light gray in one pixel below
+    sw $t1, 260($a3)                    # Draw light gray in two pixels below
+    sw $t1, 388($a3)                    # Draw light gray in three pixels below
+    sw $t1, 516($a3)                    # Draw light gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t1, 8($a3)                      # Draw light gray in the current pixel
+    sw $t1, 136($a3)                    # Draw light gray in one pixel below
+    sw $t1, 264($a3)                    # Draw light gray in two pixels below
+    sw $t1, 392($a3)                    # Draw light gray in three pixels below
+    sw $t1, 520($a3)                    # Draw light gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t2, 0($a3)                      # Draw black in the current pixel
+    sw $t2, 128($a3)                    # Draw black in one pixel below
+    sw $t2, 256($a3)                    # Draw black in two pixels below
+    sw $t2, 384($a3)                    # Draw black in three pixels below
+    sw $t2, 512($a3)                    # Draw black in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t2, 4($a3)                      # Draw black in the current pixel
+    sw $t2, 132($a3)                    # Draw black in one pixel below
+    sw $t2, 260($a3)                    # Draw black in two pixels below
+    sw $t2, 388($a3)                    # Draw black in three pixels below
+    sw $t2, 516($a3)                    # Draw black in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t2, 8($a3)                      # Draw black in the current pixel
+    sw $t2, 136($a3)                    # Draw black in one pixel below
+    sw $t2, 264($a3)                    # Draw black in two pixels below
+    sw $t2, 392($a3)                    # Draw black in three pixels below
+    sw $t2, 520($a3)                    # Draw black in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t1, 0($a3)                      # Draw light gray in the current pixel
+    sw $t1, 128($a3)                    # Draw light gray in one pixel below
+    sw $t1, 256($a3)                    # Draw light gray in two pixels below
+    sw $t1, 384($a3)                    # Draw light gray in three pixels below
+    sw $t1, 512($a3)                    # Draw light gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t1, 4($a3)                      # Draw light gray in the current pixel
+    sw $t1, 132($a3)                    # Draw light gray in one pixel below
+    sw $t1, 260($a3)                    # Draw light gray in two pixels below
+    sw $t1, 388($a3)                    # Draw light gray in three pixels below
+    sw $t1, 516($a3)                    # Draw light gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t1, 8($a3)                      # Draw light gray in the current pixel
+    sw $t1, 136($a3)                    # Draw light gray in one pixel below
+    sw $t1, 264($a3)                    # Draw light gray in two pixels below
+    sw $t1, 392($a3)                    # Draw light gray in three pixels below
+    sw $t1, 520($a3)                    # Draw light gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t0, 0($a3)                      # Draw gray in the current pixel
+    sw $t0, 128($a3)                    # Draw gray in one pixel below
+    sw $t0, 256($a3)                    # Draw gray in two pixels below
+    sw $t0, 384($a3)                    # Draw gray in three pixels below
+    sw $t0, 512($a3)                    # Draw gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t0, 4($a3)                      # Draw gray in the current pixel
+    sw $t0, 132($a3)                    # Draw gray in one pixel below
+    sw $t0, 260($a3)                    # Draw gray in two pixels below
+    sw $t0, 388($a3)                    # Draw gray in three pixels below
+    sw $t0, 516($a3)                    # Draw gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t0, 8($a3)                      # Draw gray in the current pixel
+    sw $t0, 136($a3)                    # Draw gray in one pixel below
+    sw $t0, 264($a3)                    # Draw gray in two pixels below
+    sw $t0, 392($a3)                    # Draw gray in three pixels below
+    sw $t0, 520($a3)                    # Draw gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t2, 0($a3)                      # Draw black in the current pixel
+    sw $t2, 128($a3)                    # Draw black in one pixel below
+    sw $t2, 256($a3)                    # Draw black in two pixels below
+    sw $t2, 384($a3)                    # Draw black in three pixels below
+    sw $t2, 512($a3)                    # Draw black in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t2, 4($a3)                      # Draw black in the current pixel
+    sw $t2, 132($a3)                    # Draw black in one pixel below
+    sw $t2, 260($a3)                    # Draw black in two pixels below
+    sw $t2, 388($a3)                    # Draw black in three pixels below
+    sw $t2, 516($a3)                    # Draw black in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t2, 8($a3)                      # Draw black in the current pixel
+    sw $t2, 136($a3)                    # Draw black in one pixel below
+    sw $t2, 264($a3)                    # Draw black in two pixels below
+    sw $t2, 392($a3)                    # Draw black in three pixels below
+    sw $t2, 520($a3)                    # Draw black in four pixels below
+
+    beq $a2, 4, start_draw_four
+    beq $a2, 3, start_draw_three
+    beq $a2, 2, start_draw_two
+    beq $a2, 1, start_draw_one
+    beq $a2, 0, start_draw_zero
+
+    start_draw_four:
+        jal draw_four
+        j dbb_end
+    start_draw_three:
+        jal draw_three
+        j dbb_end
+    start_draw_two:
+        jal draw_two
+        j dbb_end
+    start_draw_one:
+        jal draw_one
+        j dbb_end
+    start_draw_zero:
+        jal draw_zero
+        j dbb_end
+
+    dbb_end:
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+##############################################################################
+# Function to draw score 4
+# Parameters:
+# - $a3 = where to draw score 4 in the display (in address)
+draw_four:
+    lw $t0, WHITE                       # $t0 = white
+    sw $t0, 0($a3)
+    sw $t0, 128($a3)
+    sw $t0, 256($a3)
+    sw $t0, 8($a3)
+    sw $t0, 136($a3)
+    sw $t0, 264($a3)
+    sw $t0, 260($a3)
+    sw $t0, 392($a3)
+    sw $t0, 520($a3)
+    jr $ra
+
+
+##############################################################################
+# Function to draw score 3
+# Parameters:
+# - $a3 = where to draw score 3 in the display (in address)
+draw_three:
+    lw $t0, WHITE                       # $t0 = white
+    sw $t0, 0($a3)
+    sw $t0, 4($a3)
+    sw $t0, 8($a3)
+    sw $t0, 136($a3)
+    sw $t0, 256($a3)
+    sw $t0, 260($a3)
+    sw $t0, 264($a3)
+    sw $t0, 392($a3)
+    sw $t0, 512($a3)
+    sw $t0, 516($a3)
+    sw $t0, 520($a3)
+    jr $ra
+
+
+##############################################################################
+# Function to draw score 2
+# Parameters:
+# - $a3 = where to draw score 2 in the display (in address)
+draw_two:
+    lw $t0, WHITE                       # $t0 = white
+    sw $t0, 0($a3)
+    sw $t0, 4($a3)
+    sw $t0, 8($a3)
+    sw $t0, 136($a3)
+    sw $t0, 256($a3)
+    sw $t0, 260($a3)
+    sw $t0, 264($a3)
+    sw $t0, 384($a3)
+    sw $t0, 512($a3)
+    sw $t0, 516($a3)
+    sw $t0, 520($a3)
+    jr $ra
+
+##############################################################################
+# Function to draw score 1
+# Parameters:
+# - $a3 = where to draw score 1 in the display (in address)
+draw_one:
+    lw $t0, WHITE                       # $t0 = white
+    sw $t0, 8($a3)
+    sw $t0, 136($a3)
+    sw $t0, 264($a3)
+    sw $t0, 392($a3)
+    sw $t0, 520($a3)
+    jr $ra
+
+
+##############################################################################
+# Function to draw score 0
+# Parameters:
+# - $a3 = where to draw score 0 in the display (in address)
+draw_zero:
+    lw $t0, WHITE                       # $t0 = white
+    sw $t0, 0($a3)
+    sw $t0, 4($a3)
+    sw $t0, 8($a3)
+    sw $t0, 128($a3)
+    sw $t0, 136($a3)
+    sw $t0, 256($a3)
+    sw $t0, 264($a3)
+    sw $t0, 384($a3)
+    sw $t0, 392($a3)
+    sw $t0, 512($a3)
+    sw $t0, 516($a3)
+    sw $t0, 520($a3)
+    jr $ra
