@@ -105,6 +105,10 @@ WHITE:
     .word 0xffffff
 BLACK:
     .word 0x000000
+LIGHT_GRAY:
+    .word 0xaaaaaa
+DARK_GRAY:
+    .word 0x888888
 ADDR_NEXT_CAPSULE:
     .word 0x100084b0
 ADDR_START_CAPSULE:
@@ -130,6 +134,8 @@ ADDR_GRID_START:
     .word 0x1000868c  # 13 * (32 * 4) + 3 * 4 => 1676 + 0x10008000
 OFFSET_FROM_TOP_LEFT:
     .word 1676
+SLEEP_PER_LOOP:
+    .word 10
 
 ##############################################################################
 # Mutable Data
@@ -142,6 +148,7 @@ CURR_CAPSULE_STATE:
 
 # s0: Current capsule block's top left pixel address in the bitmap
 # s1: The current number of viruses in the bottle
+# s2: The number of frames since last capsule movement caused by gravity (i.e. move down once per second)
 
 PREV_BITMAP:
     .space 4096
@@ -154,6 +161,7 @@ ALLOC_OFFSET_CAPSULE_HALF:
 # Integer storing the number of viruses in the bottle
 VIRUS_COUNT:
     .word 4
+
 ##############################################################################
 # Code
 ##############################################################################
@@ -180,6 +188,9 @@ main:
     # Initialize the viruses
     lw $s1, VIRUS_COUNT         # $s1 = initial number of viruses
     jal draw_viruses            # Draw the viruses
+
+    # Initialize the number of frames since last capsule movement caused by gravity
+    li $s2, 0
 
     # Initialize the next capsule state
     lw $a3, ADDR_NEXT_CAPSULE
@@ -238,12 +249,13 @@ game_loop:
     jal init_capsule_state
     jal generate_random_capsule_colors
     jal draw_next_capsule
+    jal draw_outline
 
     gl_after_generate:
     # 1a. Check if key has been pressed
     lw $t0, ADDR_KBRD                   # $t0 = base address for keyboard
     lw $t1, 0($t0)                      # Load first word from keyboard
-    bne $t1, 1, gl_after_generate       # If the first word is not 1, no key is pressed
+    bne $t1, 1, after_handling_move     # If the first word is not 1, no key is pressed
     # 1b. Check which key has been pressed
     lw $t1, 4($t0)                      # $t1 = key pressed (second word from keyboard)
     beq $t1, 0x70, handle_pause         # Check if the key is 'p'
@@ -254,19 +266,28 @@ game_loop:
     beq $t1, 0x64, handle_move_right    # Check if the key is 'd'
     beq $t1, 0x72, handle_reset         # Check if the key is 'r'
     beq $t1, 0x7a, debug_change_capsule # Check if the key is 'z' TODO: delete this for production
-    j gl_after_generate                 # Invalid key pressed, get another key
+    j after_handling_move               # Invalid key pressed
+    handle_pause:
+        jal pause
+        j after_handling_move
     handle_rotate:
+        jal delete_outline
         jal rotate
+        jal draw_outline
         j after_handling_move
     handle_move_left:
+        jal delete_outline
         jal move_left
+        jal draw_outline
         j after_handling_move
     handle_move_down:
         jal move_down
         beq $v0, 1, handle_remove_consecutives  # If the capsule can't move down, check for any consecutive color pixels
         j after_handling_move
     handle_move_right:
+        jal delete_outline
         jal move_right
+        jal draw_outline
         j after_handling_move
     debug_change_capsule:
         jal remove_capsule
@@ -290,13 +311,19 @@ game_loop:
 	# 3. Draw the screen
 	# 4. Sleep
 	li $v0, 32
-	li $a0, 16
+	lw $a0, SLEEP_PER_LOOP
 	syscall
 
-    j gl_after_generate
+    # Increment the number of frames since last capsule movement caused by gravity
+    addi $s2, $s2, 1
+    bne $s2, 60, gl_after_generate          # If the number of frames since last capsule movement caused by gravity is less than 60, go to the next loop without generating a new capsule
+    # Gravity - move the capsule down
+    jal move_down
+    li $s2, 0
+    beq $v0, 1, handle_remove_consecutives  # If the capsule can't move down, check for any consecutive color pixels
+
     # 5. Go back to Step 1
-
-
+    j gl_after_generate
 
     generate_new_capsule:
         # If there's no more viruses, end the game
@@ -715,16 +742,21 @@ move_right:
 # Assumption: The capsule position is valid before moving down
 # Note: The capsule can only move down if there is nothing below it
 # Clarification: base bitmap = base address for bitmap (top left pixel of the bitmap)
-# Registers changed: $v0, $t0, $t1, $t2, $t3, $t4 $t9, $s0
+# Registers changed: $v0, $t0, $t1, $t2, $t3, $t4, $t8, $t9, $s0
 # Return value: $v0 = 1 if the capsule block can't move down, $v0 = 0 otherwise
 move_down:
     STORE_TO_STACK($ra)                 # Save the return address
+    lw $t8, LIGHT_GRAY                  # $t8 = light gray
     lw $t9, BLACK                       # $t9 = black
     # Check if the bottom left pixel of the capsule block can move down
     addi $t0, $s0, 128                  # $t0 = address of the bottom left pixel of the capsule block
     addi $t0, $t0, 128                  # $t0 = new address of the bottom left pixel of the capsule block after moving down
     lw $t1, 0($t0)                      # $t1 = color of the new address of the bottom left pixel of the capsule block
-    bne $t1, $t9, md_cant_move          # Check if the new address of the bottom left pixel is occupied (isn't black)
+    beq $t1, $t9, md_continue           # Check if the new address of the bottom left pixel is black (i.e. not occupied)
+    # The bottom left pixel of the capsule block isn't black, but can still be unoccupied if it's light gray        
+    beq $t1, $t8, md_continue           # Check if the new address of the bottom left pixel is light gray (i.e. not occupied)
+    j md_cant_move                      # The bottom left pixel of the capsule block can't move down (not light gray and not black)
+    md_continue:
     # The bottom left pixel of the capsule block can move down
     # Check if other pixels of the capsule block can move down
     jal get_pattern                     # Get the pattern of the current capsule block
@@ -734,12 +766,29 @@ move_down:
     addi $t0, $s0, 132                  # $t0 = address of the bottom right pixel of the capsule block
     addi $t0, $t0, 128                  # $t0 = new address of the bottom right pixel of the capsule block after moving down
     lw $t1, 0($t0)                      # $t1 = color of the new address of the bottom right pixel of the capsule block
-    bne $t1, $t9, md_cant_move          # Check if the new address of the bottom right pixel is occupied (isn't black)
-    j md_can_move                       # The bottom right pixel of the capsule block also can move down
+    beq $t1, $t9, md_can_move           # Check if the new address of the bottom right pixel is black (i.e. not occupied)
+    beq $t1, $t8, md_can_move           # Check if the new address of the bottom right pixel is light gray (i.e. not occupied)
+    j md_cant_move                       # The bottom right pixel of the capsule block also can move down
 
     md_can_move:
         jal remove_capsule              # Remove the current capsule block
         addi $s0, $s0, 128              # Move the capsule block down by 1 pixel
+        # Remove the outline of the capsule block if it exists
+        jal get_pattern                 # Get the pattern of the current capsule block
+        beq $v0, 1, md_remove_outline_1 # Check if the pattern is 1
+        j md_remove_outline_2           # The pattern is 2
+        md_remove_outline_1:
+            # Only remove the outline of bottom left of current capsule
+            lw $t9, BLACK
+            sw $t9, 128($s0)
+            sw $t9, 132($s0)
+            j md_remove_outline_end
+        md_remove_outline_2:
+            # Remove the outline of the bottom left and bottom right of current capsule
+            lw $t9, BLACK
+            sw $t9, 128($s0)
+            j md_remove_outline_end
+        md_remove_outline_end:
         jal draw_capsule                # Draw the capsule block at the new position
         li $v0, 0                       # $v0 = 0 since the capsule block can move down
         j md_end
@@ -965,7 +1014,6 @@ remove_consecutives_v:
         RESTORE_FROM_STACK($t0)
 
         beq $v0, $zero, not_virus_v
-        addi $s2, $s2, 1        # Increment virus counter if virus found
         addi $s1, $s1, -1       # Decrement total virus count
 
         not_virus_v:
@@ -991,7 +1039,7 @@ remove_consecutives_v:
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
-    li $a3, 0x888888
+    lw $a3, DARK_GRAY
     jal draw_vertical_line
     RESTORE_FROM_STACK($a2)
     RESTORE_FROM_STACK($a1)
@@ -1006,7 +1054,7 @@ remove_consecutives_v:
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
-    li $a3, 0xaaaaaa
+    lw $a3, LIGHT_GRAY
     jal draw_vertical_line
     RESTORE_FROM_STACK($a2)
     RESTORE_FROM_STACK($a1)
@@ -1072,7 +1120,6 @@ remove_consecutives_h:
         RESTORE_FROM_STACK($t0)
 
         beq $v0, $zero, not_virus_h
-        addi $s2, $s2, 1        # Increment virus counter if virus found
         addi $s1, $s1, -1       # Decrement total virus count
 
         not_virus_h:
@@ -1096,7 +1143,7 @@ remove_consecutives_h:
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
-    li $a3, 0x888888
+    lw $a3, DARK_GRAY
     jal draw_horizontal_line
     RESTORE_FROM_STACK($a2)
     RESTORE_FROM_STACK($a1)
@@ -1111,7 +1158,7 @@ remove_consecutives_h:
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
     STORE_TO_STACK($a2)
-    li $a3, 0xaaaaaa
+    lw $a3, LIGHT_GRAY
     jal draw_horizontal_line
     RESTORE_FROM_STACK($a2)
     RESTORE_FROM_STACK($a1)
@@ -1903,6 +1950,7 @@ draw_pause:
 
 ##############################################################################
 # Function to delete pause icon from the top left corner of the screen
+# Registers changed: $t0, $t1
 delete_pause:
     lw $t0, ADDR_DSPL                   # $t0 = base address for display
     lw $t1, BLACK                       # $t1 = black
@@ -1933,18 +1981,19 @@ delete_pause:
 
 ##############################################################################
 # Function to handle pause screen
-handle_pause:
+# Registers changed: $ra, $t0, $t1
+pause:
     STORE_TO_STACK($ra)
     jal draw_pause
-    pause_loop:
+    p_loop:
         lw $t0, ADDR_KBRD                   # $t0 = base address for keyboard
         lw $t1, 0($t0)                      # $t1 = first word from keyboard
-        bne $t1, 1, pause_loop              # If the first key is not 1, no key is pressed
+        bne $t1, 1, p_loop              # If the first key is not 1, no key is pressed
         # A key is pressed, check if it is p (pause key)
         lw $t1, 4($t0)                  # $t1 = keyboard input
-        beq $t1, 0x70, pause_end        # If the key is p, end the pause screen
-        j pause_loop
-    pause_end:
+        beq $t1, 0x70, p_end        # If the key is p, end the pause screen
+        j p_loop
+    p_end:
         jal delete_pause
         RESTORE_FROM_STACK($ra)
         jr $ra
@@ -2252,3 +2301,141 @@ draw_zero:
     sw $t0, 516($a3)
     sw $t0, 520($a3)
     jr $ra
+
+##############################################################################
+# Function to draw the outline (expected dropping point) of current capsule
+draw_outline:
+    STORE_TO_STACK($ra)
+    jal get_pattern
+    beq $v0, 1, do_pattern_1
+    j do_pattern_2
+
+    do_pattern_1:
+        # Find the lowest point we can move the capsule down
+        move $t0, $s0                       # $t0 = current capsule block's top left pixel address in the bitmap
+        # While the pixel below the current capsule block is empty, move down
+        do_loop_1:
+            lw $t1, 256($t0)                # $t1 = color of the left pixel below the current capsule block
+            lw $t2, 260($t0)                # $t2 = color of the right pixel below the current capsule block
+            lw $t3, BLACK                   # $t3 = black
+            bne $t1, $t3, do_end_1          # If the left pixel below the current capsule block is not black (occupied), end the loop
+            bne $t2, $t3, do_end_1          # If the right pixel below the current capsule block is not black (occupied), end the loop
+            addi $t0, $t0, 128              # Move down by 1 pixel
+            j do_loop_1
+        do_end_1:
+            sub $t1, $t0, $s0               # $t1 = offset of the lowest point we can move the capsule down
+            bnez $t1, do_draw_1             # If the lowest point is not the current position, draw the outline
+            j do_end
+        do_draw_1:
+            lw $t2, LIGHT_GRAY              # $t2 = light gray
+            sw $t2, 128($t0)                # Draw the outline for the left pixel of the lowest point
+            sw $t2, 132($t0)                # Draw the outline for the left pixel of the lowest point
+        j do_end
+    do_pattern_2:
+        # Find the lowest point we can move the capsule down
+        move $t0, $s0                       # $t0 = current capsule block's top left pixel address in the bitmap
+        # While the pixel below the current capsule block is empty, move down
+        do_loop_2:
+            lw $t1, 256($t0)                # $t1 = color of the left pixel below the current capsule block
+            lw $t3, BLACK                   # $t3 = black
+            bne $t1, $t3, do_end_2          # If the left pixel below the current capsule block is not black (occupied), end the loop
+            addi $t0, $t0, 128              # Move down by 1 pixel
+            j do_loop_2
+        do_end_2:
+            sub $t1, $t0, $s0               # $t1 = offset of the lowest point we can move the capsule down
+            beq $t1, 0, do_end              # If the lowest point is the current position, don't draw anything
+            beq $t1, 128, do_draw_2_half    # If the lowest point is 1 pixel below the current position , draw the outline only for the lower capsule
+            j do_draw_2_full                # The lowest point is atleast 2 pixels below the current position, draw the outline for whole capsules
+        do_draw_2_half:
+            lw $t2, LIGHT_GRAY              # $t2 = light gray
+            sw $t2, 128($t0)                # Draw the outline for the left pixel of the lowest point
+            j do_end
+        do_draw_2_full:
+            lw $t2, LIGHT_GRAY              # $t2 = light gray
+            sw $t2, 0($t0)                  # Draw the outline for the upper left pixel of the lowest point
+            sw $t2, 128($t0)                # Draw the outline for the lower left pixel of the lowest point
+            j do_end
+    do_end:
+        RESTORE_FROM_STACK($ra)
+        jr $ra
+
+##############################################################################
+# Function to delete the outline (expected dropping point) of current capsule
+delete_outline:
+    STORE_TO_STACK($ra)
+    jal get_pattern
+    beq $v0, 1, delo_pattern_1
+    j delo_pattern_2
+
+    delo_pattern_1:
+        # Find the lowest point we can move the capsule down
+        move $t0, $s0                       # $t0 = current capsule block's top left pixel address in the bitmap
+        # While the pixel below the current capsule block is empty, move down
+        delo_loop_1:
+            lw $t1, 256($t0)                # $t1 = color of the left pixel below the current capsule block
+            lw $t2, 260($t0)                # $t2 = color of the right pixel below the current capsule block
+            move $a0, $t1                   # $a0 = color of the left pixel below the current capsule block
+            jal check_unoccupied            # Check if the left pixel below the current capsule block is occupied
+            bne $v0, 1, delo_end_1            # If the left pixel below the current capsule block is occupied, end the loop
+            move $a0, $t2                   # $a0 = color of the right pixel below the current capsule block
+            jal check_unoccupied            # Check if the right pixel below the current capsule block is occupied
+            bne $v0, 1, delo_end_1            # If the right pixel below the current capsule block is occupied, end the loop
+            addi $t0, $t0, 128              # Move down by 1 pixel
+            j delo_loop_1
+        delo_end_1:
+            sub $t1, $t0, $s0               # $t1 = offset of the lowest point we can move the capsule down
+            bnez $t1, delo_draw_1             # If the lowest point is not the current position, draw the outline
+            j delo_end
+        delo_draw_1:
+            lw $t2, BLACK                   # $t2 = black
+            sw $t2, 128($t0)                # Draw the outline for the left pixel of the lowest point
+            sw $t2, 132($t0)                # Draw the outline for the left pixel of the lowest point
+        j delo_end
+    delo_pattern_2:
+        # Find the lowest point we can move the capsule down
+        move $t0, $s0                       # $t0 = current capsule block's top left pixel address in the bitmap
+        # While the pixel below the current capsule block is empty, move down
+        delo_loop_2:
+            lw $t1, 256($t0)                # $t1 = color of the left pixel below the current capsule block
+            move $a0, $t1                   # $a0 = color of the left pixel below the current capsule block
+            jal check_unoccupied            # Check if the left pixel below the current capsule block is occupied
+            bne $v0, 1, delo_end_2            # If the left pixel below the current capsule block is occupied, end the loop
+            addi $t0, $t0, 128              # Move down by 1 pixel
+            j delo_loop_2
+        delo_end_2:
+            sub $t1, $t0, $s0               # $t1 = offset of the lowest point we can move the capsule down
+            beq $t1, 0, delo_end              # If the lowest point is the current position, don't draw anything
+            beq $t1, 128, delo_draw_2_half    # If the lowest point is 1 pixel below the current position , draw the outline only for the lower capsule
+            j delo_draw_2_full                # The lowest point is atleast 2 pixels below the current position, draw the outline for whole capsules
+        delo_draw_2_half:
+            lw $t2, BLACK                   # $t2 = black
+            sw $t2, 128($t0)                # Draw the outline for the left pixel of the lowest point
+            j delo_end
+        delo_draw_2_full:
+            lw $t2, BLACK                   # $t2 = black
+            sw $t2, 0($t0)                  # Draw the outline for the upper left pixel of the lowest point
+            sw $t2, 128($t0)                # Draw the outline for the lower left pixel of the lowest point
+            j delo_end
+    delo_end:
+        RESTORE_FROM_STACK($ra)
+        jr $ra
+
+
+##############################################################################
+# Function to check whether the given capsule is black or light gray (occupied) or not, recall that black represent empty and light gray represent the outline
+# Parameters: $a0 = color of the capsule
+# Return value: $v0 = 1 if the capsule is black or light gray, 0 otherwise
+# Registers changed: $v0, $t9
+check_unoccupied:
+    lw $t9, BLACK                   # $t9 = black
+    beq $a0, $t9, co_unoccupied     # Check if the capsule is black
+    lw $t9, LIGHT_GRAY              # $t9 = light gray
+    beq $a0, $t9, co_unoccupied     # Check if the capsule is light gray
+    # The capsule is not black nor light gray
+    j co_occupied
+    co_unoccupied:
+        li $v0, 1                   # The capsule is either black or light gray, set return value to 1
+        jr $ra
+    co_occupied:
+        li $v0, 0                   # The capsule is not black nor light gray, set return value to 0
+        jr $ra
