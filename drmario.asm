@@ -2116,7 +2116,7 @@ pause:
         jal draw_pause
         # Sleep for a while
         li $v0, 32                      # syscall 32: sleep
-        li $a0, 50                      # Sleep for 10 ms
+        li $a0, 150                      # Sleep for 10 ms
         syscall
         lw $t0, ADDR_KBRD                   # $t0 = base address for keyboard
         lw $t1, 0($t0)                      # $t1 = first word from keyboard
