@@ -257,6 +257,7 @@ game_loop:
         jal draw_outline
         j after_handling_move
     debug_change_capsule:
+        jal delete_outline
         jal remove_capsule
         j generate_new_capsule
     handle_reset:
@@ -270,8 +271,7 @@ game_loop:
         j generate_new_capsule
     handle_falling:
         jal scan_falling_capsules
-        beq $v1, 1, handle_remove_consecutives
-        j generate_new_capsule
+        j handle_remove_consecutives
     after_handling_move:
     # 2a. Check for collisions
     # 2b. Update locations (capsules)
@@ -1160,10 +1160,39 @@ draw_bottle:
     # Draw the bottle
     lw $s6, GRID_WIDTH              # $s6 = width of the inside of the bottle
     lw $s7, GRID_HEIGHT             # $s7 = height of the inside of the bottle
+
+    li $a0, 18                     # $a0 = Starting X coordinate
+    li $a1, 0                      # $a1 = Starting Y coordinate
+    li $a2, 3                      # $a2 = Length of the line
+    lw $a3, WHITE                  # $a3 = Colour
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    STORE_TO_STACK($a3)
+    jal draw_vertical_line
+    RESTORE_FROM_STACK($a3)
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    li $a0, 6                      # $a0 = Starting X coordinate
+    li $a1, 2                      # $a1 = Starting Y coordinate
+    li $a2, 13                     # $a2 = Length of the line
+    lw $a3, WHITE                  # $a3 = Colour
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    STORE_TO_STACK($a3)
+    jal draw_horizontal_line
+    RESTORE_FROM_STACK($a3)
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
     # Draw the top of the bottle
-    li $a0, 6                       # $a3 = Starting X coordinate
-    li $a1, 9                       # $a2 = Starting Y coordinate
-    li $a2, 4                       # $a2 = Length of the line
+    li $a0, 6                       # $a0 = Starting X coordinate
+    li $a1, 2                       # $a1 = Starting Y coordinate
+    li $a2, 11                      # $a2 = Length of the line
     lw $a3, WHITE                   # $a3 = Colour
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
@@ -1176,8 +1205,36 @@ draw_bottle:
     RESTORE_FROM_STACK($a0)
 
     li $a0, 10                      # $a3 = Starting X coordinate
-    li $a1, 9                       # $a2 = Starting Y coordinate
-    li $a2, 4                       # $a2 = Length of the line
+    li $a1, 7                       # $a2 = Starting Y coordinate
+    li $a2, 6                       # $a2 = Length of the line
+    lw $a3, WHITE                   # $a3 = Colour
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    STORE_TO_STACK($a3)
+    jal draw_vertical_line
+    RESTORE_FROM_STACK($a3)
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    li $a0, 10                      # $a3 = Starting X coordinate
+    li $a1, 7                       # $a2 = Starting Y coordinate
+    li $a2, 14                      # $a2 = Length of the line
+    lw $a3, WHITE                   # $a3 = Colour
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    STORE_TO_STACK($a3)
+    jal draw_horizontal_line
+    RESTORE_FROM_STACK($a3)
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    li $a0, 23                      # $a3 = Starting X coordinate
+    li $a1, 0                       # $a2 = Starting Y coordinate
+    li $a2, 8                       # $a2 = Length of the line
     lw $a3, WHITE                   # $a3 = Colour
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
@@ -1626,7 +1683,7 @@ draw_viruses:
 # Function to check for falling capsules (in the entire bottle)
 # Run a single vertical scan (from bottom to top) for each column, from the
 # leftmost column to the rightmost column
-# Registers changed: $ra, $a0, $a1, $s3, $t0, $t1, $t2, $s3, $s4 $s5, $s6, $s7
+# Registers changed: $ra, $a0, $a1, $t0, $t1, $t2, $s3, $s4 $s5, $s6, $s7
 # Persistent registers (throughout this function):
 # - $s3 = 1 if current outer loop has at least one falling capsule, 0 otherwise
 # - $s4 = offset of the current capsule position, relative to base bitmap
@@ -1910,30 +1967,87 @@ move_down_full_capsule:
 # Function to draw pause icon at the top left corner of the screen
 # Registers changed: $t0, $t1
 draw_pause:
+    STORE_TO_STACK($v0)
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    # Generate a random number for the color (0 to 0xffffff)
+    li $v0, 42                          # syscall 42: generate random number
+    li $a0, 0                           # Random number generated from 0
+    li $a1, 0x1000000                   # to 0xffffff inclusive
+    syscall
     lw $t0, ADDR_DSPL                   # $t0 = base address for display
-    lw $t1, WHITE                       # $t1 = white
-    sw $t1, 16($t0)
-    sw $t1, 20($t0)
-    sw $t1, 24($t0)
-    sw $t1, 140($t0)
-    sw $t1, 156($t0)
-    sw $t1, 264($t0)
-    sw $t1, 288($t0)
-    sw $t1, 388($t0)
-    sw $t1, 400($t0)
-    sw $t1, 408($t0)
-    sw $t1, 420($t0)
-    sw $t1, 516($t0)
-    sw $t1, 528($t0)
-    sw $t1, 536($t0)
-    sw $t1, 548($t0)
-    sw $t1, 648($t0)
-    sw $t1, 672($t0)
-    sw $t1, 780($t0)
-    sw $t1, 796($t0)
-    sw $t1, 912($t0)
-    sw $t1, 916($t0)
-    sw $t1, 920($t0)
+    move $t1, $a0                       # $t1 = random color
+    sw $t1, 2004($t0)
+    sw $t1, 2008($t0)
+    sw $t1, 2012($t0)
+    sw $t1, 2016($t0)
+    sw $t1, 2020($t0)
+    sw $t1, 2124($t0)
+    sw $t1, 2128($t0)
+    sw $t1, 2152($t0)
+    sw $t1, 2156($t0)
+    sw $t1, 2248($t0)
+    sw $t1, 2288($t0)
+    sw $t1, 2372($t0)
+    sw $t1, 2420($t0)
+    sw $t1, 2500($t0)
+    sw $t1, 2516($t0)
+    sw $t1, 2520($t0)
+    sw $t1, 2528($t0)
+    sw $t1, 2532($t0)
+    sw $t1, 2548($t0)
+    sw $t1, 2624($t0)
+    sw $t1, 2644($t0)
+    sw $t1, 2648($t0)
+    sw $t1, 2656($t0)
+    sw $t1, 2660($t0)
+    sw $t1, 2680($t0)
+    sw $t1, 2752($t0)
+    sw $t1, 2772($t0)
+    sw $t1, 2776($t0)
+    sw $t1, 2784($t0)
+    sw $t1, 2788($t0)
+    sw $t1, 2808($t0)
+    sw $t1, 2880($t0)
+    sw $t1, 2900($t0)
+    sw $t1, 2904($t0)
+    sw $t1, 2912($t0)
+    sw $t1, 2916($t0)
+    sw $t1, 2936($t0)
+    sw $t1, 3008($t0)
+    sw $t1, 3028($t0)
+    sw $t1, 3032($t0)
+    sw $t1, 3040($t0)
+    sw $t1, 3044($t0)
+    sw $t1, 3064($t0)
+    sw $t1, 3136($t0)
+    sw $t1, 3156($t0)
+    sw $t1, 3160($t0)
+    sw $t1, 3168($t0)
+    sw $t1, 3172($t0)
+    sw $t1, 3192($t0)
+    sw $t1, 3268($t0)
+    sw $t1, 3284($t0)
+    sw $t1, 3288($t0)
+    sw $t1, 3296($t0)
+    sw $t1, 3300($t0)
+    sw $t1, 3316($t0)
+    sw $t1, 3396($t0)
+    sw $t1, 3444($t0)
+    sw $t1, 3528($t0)
+    sw $t1, 3568($t0)
+    sw $t1, 3660($t0)
+    sw $t1, 3664($t0)
+    sw $t1, 3688($t0)
+    sw $t1, 3692($t0)
+    sw $t1, 3796($t0)
+    sw $t1, 3800($t0)
+    sw $t1, 3804($t0)
+    sw $t1, 3808($t0)
+    sw $t1, 3812($t0)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+    RESTORE_FROM_STACK($v0)
     jr $ra
 
 
@@ -1943,38 +2057,90 @@ draw_pause:
 delete_pause:
     lw $t0, ADDR_DSPL                   # $t0 = base address for display
     lw $t1, BLACK                       # $t1 = black
-    sw $t1, 16($t0)
-    sw $t1, 20($t0)
-    sw $t1, 24($t0)
-    sw $t1, 140($t0)
-    sw $t1, 156($t0)
-    sw $t1, 264($t0)
-    sw $t1, 288($t0)
-    sw $t1, 388($t0)
-    sw $t1, 400($t0)
-    sw $t1, 408($t0)
-    sw $t1, 420($t0)
-    sw $t1, 516($t0)
-    sw $t1, 528($t0)
-    sw $t1, 536($t0)
-    sw $t1, 548($t0)
-    sw $t1, 648($t0)
-    sw $t1, 672($t0)
-    sw $t1, 780($t0)
-    sw $t1, 796($t0)
-    sw $t1, 912($t0)
-    sw $t1, 916($t0)
-    sw $t1, 920($t0)
+    sw $t1, 2004($t0)
+    sw $t1, 2008($t0)
+    sw $t1, 2012($t0)
+    sw $t1, 2016($t0)
+    sw $t1, 2020($t0)
+    sw $t1, 2124($t0)
+    sw $t1, 2128($t0)
+    sw $t1, 2152($t0)
+    sw $t1, 2156($t0)
+    sw $t1, 2248($t0)
+    sw $t1, 2288($t0)
+    sw $t1, 2372($t0)
+    sw $t1, 2420($t0)
+    sw $t1, 2500($t0)
+    sw $t1, 2516($t0)
+    sw $t1, 2520($t0)
+    sw $t1, 2528($t0)
+    sw $t1, 2532($t0)
+    sw $t1, 2548($t0)
+    sw $t1, 2624($t0)
+    sw $t1, 2644($t0)
+    sw $t1, 2648($t0)
+    sw $t1, 2656($t0)
+    sw $t1, 2660($t0)
+    sw $t1, 2680($t0)
+    sw $t1, 2752($t0)
+    sw $t1, 2772($t0)
+    sw $t1, 2776($t0)
+    sw $t1, 2784($t0)
+    sw $t1, 2788($t0)
+    sw $t1, 2808($t0)
+    sw $t1, 2880($t0)
+    sw $t1, 2900($t0)
+    sw $t1, 2904($t0)
+    sw $t1, 2912($t0)
+    sw $t1, 2916($t0)
+    sw $t1, 2936($t0)
+    sw $t1, 3008($t0)
+    sw $t1, 3028($t0)
+    sw $t1, 3032($t0)
+    sw $t1, 3040($t0)
+    sw $t1, 3044($t0)
+    sw $t1, 3064($t0)
+    sw $t1, 3136($t0)
+    sw $t1, 3156($t0)
+    sw $t1, 3160($t0)
+    sw $t1, 3168($t0)
+    sw $t1, 3172($t0)
+    sw $t1, 3192($t0)
+    sw $t1, 3268($t0)
+    sw $t1, 3284($t0)
+    sw $t1, 3288($t0)
+    sw $t1, 3296($t0)
+    sw $t1, 3300($t0)
+    sw $t1, 3316($t0)
+    sw $t1, 3396($t0)
+    sw $t1, 3444($t0)
+    sw $t1, 3528($t0)
+    sw $t1, 3568($t0)
+    sw $t1, 3660($t0)
+    sw $t1, 3664($t0)
+    sw $t1, 3688($t0)
+    sw $t1, 3692($t0)
+    sw $t1, 3796($t0)
+    sw $t1, 3800($t0)
+    sw $t1, 3804($t0)
+    sw $t1, 3808($t0)
+    sw $t1, 3812($t0)
     jr $ra
 
 
 ##############################################################################
 # Function to handle pause screen
-# Registers changed: $ra, $t0, $t1
+# Registers changed: $t0, $t1
 pause:
     STORE_TO_STACK($ra)
-    jal draw_pause
+    STORE_TO_STACK($v0)
+    STORE_TO_STACK($a0)
     p_loop:
+        jal draw_pause
+        # Sleep for a while
+        li $v0, 32                      # syscall 32: sleep
+        li $a0, 50                      # Sleep for 10 ms
+        syscall
         lw $t0, ADDR_KBRD                   # $t0 = base address for keyboard
         lw $t1, 0($t0)                      # $t1 = first word from keyboard
         bne $t1, 1, p_loop              # If the first key is not 1, no key is pressed
@@ -1984,6 +2150,8 @@ pause:
         j p_loop
     p_end:
         jal delete_pause
+        RESTORE_FROM_STACK($a0)
+        RESTORE_FROM_STACK($v0)
         RESTORE_FROM_STACK($ra)
         jr $ra
 
