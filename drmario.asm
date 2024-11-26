@@ -71,9 +71,9 @@
 
 # Game over sound
 .macro PLAY_GAME_OVER()
-    PLAY_SOUND(60, 300, 72, 150)
-    PLAY_SOUND(55, 300, 72, 150)
-    PLAY_SOUND(50, 600, 72, 150)
+    PLAY_SOUND(60, 300, 72, 1000)
+    PLAY_SOUND(55, 300, 72, 1000)
+    PLAY_SOUND(50, 600, 72, 1000)
 .end_macro
 
 # Can't rotate sound
