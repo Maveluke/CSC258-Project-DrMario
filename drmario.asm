@@ -4,7 +4,7 @@
 # Student 1: Janis Joplin, 1009715051
 # Student 2: Maverick Luke, 1009714855
 #
-# We assert that the code submitted here is entirely our own 
+# We assert that the code submitted here is entirely our own
 # creation, and will indicate otherwise when it is not.
 #
 ######################## Bitmap Display Configuration ########################
@@ -110,9 +110,11 @@ LIGHT_GRAY:
 DARK_GRAY:
     .word 0x888888
 ADDR_NEXT_CAPSULE:
-    .word 0x10008230
+    .word 0x10008050
 ADDR_START_CAPSULE:
     .word 0x10008230
+ADDR_BOTTLE_MOUTH:
+    .word 0x100086a0
 BOTTLE_TL_X:
     .word 3
 BOTTLE_TL_Y:
@@ -153,7 +155,7 @@ CURR_CAPSULE_STATE:
 PREV_BITMAP:
     .space 4096
 
-# Matrix storing capsule connections: For each cell containing half a capsule (part of a full capsule),  
+# Matrix storing capsule connections: For each cell containing half a capsule (part of a full capsule),
 # stores the offset of its other half, relative to the base. Uses 0 for cells that aren't part of a capsule
 ALLOC_OFFSET_CAPSULE_HALF:
     .space 4096
@@ -165,8 +167,8 @@ VIRUS_COUNT:
 ##############################################################################
 # Code
 ##############################################################################
-	.text
-	.globl main
+    .text
+    .globl main
 
 # Note: We are using 2x2 pixel blocks to represent the current state of the capsule
 
@@ -195,26 +197,22 @@ main:
     # Initialize the next capsule state
     lw $a3, ADDR_NEXT_CAPSULE
     # Draw the initial capsule
-    jal init_capsule_state
-    jal generate_random_capsule_colors
-    jal draw_next_capsule
-
+    jal draw_initial_capsules
 
 game_loop:
     # Draw new capsule from the next capsule
     # Initialize the new capsule
-    jal set_new_capsule
-    jal draw_capsule
+    jal set_adjacent_capsule
+    #jal draw_capsule
+    # TODO: If the mouth of the bottle is blocked, end the game
+    lw $t0, ADDR_BOTTLE_MOUTH
+    lw $t1, 0($t0)
+    bne $t1, 0, game_lost
     jal capsule_to_bottle_animation
-
+    jal move_capsules_left
+    jal generate_animate_new_capsules
     CLEAR_ALL_KEYBOARD_INPUTS()
-    # Check if the new capsule can move down
-    beq $v0, 1, game_lost
 
-    # Generate the next capsule state
-    jal init_capsule_state
-    jal generate_random_capsule_colors
-    jal draw_next_capsule
     jal draw_outline
 
     gl_after_generate:
@@ -273,12 +271,12 @@ game_loop:
         j handle_remove_consecutives
     after_handling_move:
     # 2a. Check for collisions
-	# 2b. Update locations (capsules)
-	# 3. Draw the screen
-	# 4. Sleep
-	li $v0, 32
-	lw $a0, SLEEP_PER_LOOP
-	syscall
+    # 2b. Update locations (capsules)
+    # 3. Draw the screen
+    # 4. Sleep
+    li $v0, 32
+    lw $a0, SLEEP_PER_LOOP
+    syscall
 
     # Increment the number of frames since last capsule movement caused by gravity
     addi $s2, $s2, 1
@@ -628,7 +626,7 @@ get_pattern:
 move_left:
     STORE_TO_STACK($ra)                 # Save the return address
     lw $t9, BLACK                       # $t9 = black
-    # Check if the bottom left pixel of the capsule block can move 
+    # Check if the bottom left pixel of the capsule block can move
     addi $t0, $s0, 128                  # $t0 = address of the bottom left pixel of the capsule block
     addi $t0, $t0, -4                   # $t0 = new address of the bottom left pixel of the capsule block after moving left
     lw $t1, 0($t0)                      # $t1 = color of the new address of the bottom left pixel of the capsule block
@@ -719,7 +717,7 @@ move_down:
     addi $t0, $t0, 128                  # $t0 = new address of the bottom left pixel of the capsule block after moving down
     lw $t1, 0($t0)                      # $t1 = color of the new address of the bottom left pixel of the capsule block
     beq $t1, $t9, md_continue           # Check if the new address of the bottom left pixel is black (i.e. not occupied)
-    # The bottom left pixel of the capsule block isn't black, but can still be unoccupied if it's light gray        
+    # The bottom left pixel of the capsule block isn't black, but can still be unoccupied if it's light gray
     beq $t1, $t8, md_continue           # Check if the new address of the bottom left pixel is light gray (i.e. not occupied)
     j md_cant_move                      # The bottom left pixel of the capsule block can't move down (not light gray and not black)
     md_continue:
@@ -1101,7 +1099,7 @@ remove_consecutives_h:
         addi $t0, $t0, 4
         j rch_alter_capsule_matrix
     rch_alter_end:
-    
+
     RESTORE_FROM_STACK($a2)
     RESTORE_FROM_STACK($a1)
     RESTORE_FROM_STACK($a0)
@@ -1144,7 +1142,7 @@ remove_consecutives_h:
     RESTORE_FROM_STACK($a2)
     RESTORE_FROM_STACK($a1)
     RESTORE_FROM_STACK($a0)
-    
+
     RESTORE_FROM_STACK($ra)
     jr $ra
 
@@ -1155,7 +1153,7 @@ remove_consecutives_h:
 draw_bottle:
     # Save the return address $ra
     STORE_TO_STACK($ra)
-    
+
     # Draw the bottle
     lw $s6, GRID_WIDTH              # $s6 = width of the inside of the bottle
     lw $s7, GRID_HEIGHT             # $s7 = height of the inside of the bottle
@@ -1535,7 +1533,7 @@ set_new_capsule:
     lw $s0, ADDR_START_CAPSULE
 
     # Set the new capsule color
-    la $t0, NEXT_CAPSULE_STATE
+    la $t0, NEXT_CAPSULE_STATE      # Set the current color palette
     la $t3, CURR_CAPSULE_STATE
     lw $t2, 0($t0)
     sw $t2, 0($t3)
@@ -1545,8 +1543,30 @@ set_new_capsule:
     sw $t2, 8($t3)
     lw $t2, 12($t0)
     sw $t2, 12($t3)
-        
+
     jr $ra
+
+
+##############################################################################
+# Function to set a next capsule to the next capsule state
+# Registers changed: s0, t0, t1, t2, t3
+set_adjacent_capsule:
+    # Set $s0 to start address
+    lw $s0, ADDR_START_CAPSULE
+
+    # Set the new capsule color
+    la $t3, CURR_CAPSULE_STATE
+    lw $t2, 0($s0)
+    sw $t2, 0($t3)
+    lw $t2, 4($s0)
+    sw $t2, 4($t3)
+    lw $t2, 128($s0)
+    sw $t2, 8($t3)
+    lw $t2, 132($s0)
+    sw $t2, 12($t3)
+
+    jr $ra
+
 
 ##############################################################################
 # Function to return random color
@@ -1667,7 +1687,7 @@ draw_viruses:
 # - $s5 = offset of the other half of the current capsule position, relative to base bitmap (if applicable)
 # - $s6 = column counter (from left to right)
 # - $s7 = row counter (from bottom to top)
-# Clarification: 
+# Clarification:
 # - base bottle = top left pixel of the bottle
 # - base bitmap = base address for bitmap (top left pixel of the bitmap)
 # Return value: $v1 = 1 if there is at least one falling capsule, 0 otherwise
@@ -1713,7 +1733,7 @@ scan_falling_capsules:
                 # Find address of the other half of the current capsule
                 la $s5, ALLOC_OFFSET_CAPSULE_HALF   # $s5 = pointer to offset of the other half of the top left pixel, relative to base bitmap
                 add $s5, $s5, $s4                   # $s5 = pointer to offset of the other half of the current pixel, relative to base bitmap
-                lw $s5, 0($s5)                      # $s5 = offset of the other half of the current pixel, relative to base bitmap      
+                lw $s5, 0($s5)                      # $s5 = offset of the other half of the current pixel, relative to base bitmap
                 lw $t0, ADDR_DSPL                   # $t0 = base address for display
                 add $t2, $t0, $s5                   # $t2 = address of the other half of the current pixel
                 beq $t2, $zero, sfc_half_capsule    # Check if the other half of the current capsule doesn't exist (i.e. this is a half capsule)
@@ -1846,7 +1866,7 @@ move_down_full_capsule:
         move $t0, $t1                       # $t0 = $t1
         move $t1, $t2                       # $t1 = $t0
         j mdfc_loop_vertical                # Swap to make sure $t0 is above $t1 before going to the loop
-    
+
     mdfc_loop_vertical:
         # Format: $t0
         #         $t1 ($t0 above $t1)
@@ -2675,4 +2695,224 @@ capsule_to_bottle_animation:
     RESTORE_FROM_STACK($ra)
     jr $ra
 
+##############################################################################
+# Function to draw the initial capsules
+draw_initial_capsules:
+    STORE_TO_STACK($ra)
 
+    # Draw the first capsule
+    jal init_capsule_state
+    jal generate_random_capsule_colors
+    jal draw_next_capsule
+
+    la $t0, NEXT_CAPSULE_STATE
+    lw $t1, 0($t0)
+    STORE_TO_STACK($t1)
+    lw $t1, 4($t0)
+    STORE_TO_STACK($t1)
+    lw $t1, 8($t0)
+    STORE_TO_STACK($t1)
+    lw $t1, 12($t0)
+    STORE_TO_STACK($t1)
+    jal set_new_capsule
+    lw $s0, ADDR_NEXT_CAPSULE
+
+    # Move the first capsule to its initial position
+    li $a3, 4
+    jal capsule_to_bottom
+    li $a3, 8
+    jal capsule_to_left
+
+    # Draw the second capsule
+    jal init_capsule_state
+    jal generate_random_capsule_colors
+    jal draw_next_capsule
+
+    jal set_new_capsule
+    lw $s0, ADDR_NEXT_CAPSULE
+
+    # Move the second capsule to its initial position
+    li $a3, 4
+    jal capsule_to_bottom
+    li $a3, 6
+    jal capsule_to_left
+
+    # Draw the third capsule
+    jal init_capsule_state
+    jal generate_random_capsule_colors
+    jal draw_next_capsule
+
+    jal set_new_capsule
+    lw $s0, ADDR_NEXT_CAPSULE
+
+    # Move the third capsule to its initial position
+    li $a3, 4
+    jal capsule_to_bottom
+    li $a3, 4
+    jal capsule_to_left
+
+    # Draw the fourth capsule
+    jal init_capsule_state
+    jal generate_random_capsule_colors
+    jal draw_next_capsule
+
+    jal set_new_capsule
+    lw $s0, ADDR_NEXT_CAPSULE
+
+    # Move the fourth capsule to its initial position
+    li $a3, 4
+    jal capsule_to_bottom
+    li $a3, 2
+    jal capsule_to_left
+
+    # Draw the fifth capsule
+    jal init_capsule_state
+    jal generate_random_capsule_colors
+    jal draw_next_capsule
+
+    jal set_new_capsule
+    lw $s0, ADDR_NEXT_CAPSULE
+
+    # Move the fourth capsule to its initial position
+    li $a3, 4
+    jal capsule_to_bottom
+
+    la $t0, NEXT_CAPSULE_STATE
+    RESTORE_FROM_STACK($t1)
+    sw $t1, 12($t0)
+    RESTORE_FROM_STACK($t1)
+    sw $t1, 8($t0)
+    RESTORE_FROM_STACK($t1)
+    sw $t1, 4($t0)
+    RESTORE_FROM_STACK($t1)
+    sw $t1, 0($t0)
+
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+
+##############################################################################
+# Function to move the capsules to the left
+move_capsules_left:
+    STORE_TO_STACK($ra)
+    STORE_TO_STACK($s0)
+    la $t0, CURR_CAPSULE_STATE          # $t0 = address of the current capsule state
+    lw $t1, 0($t0)
+    STORE_TO_STACK($t1)
+    lw $t1, 4($t0)
+    STORE_TO_STACK($t1)
+    lw $t1, 8($t0)
+    STORE_TO_STACK($t1)
+    lw $t1, 12($t0)
+    STORE_TO_STACK($t1)
+    lw $s0, ADDR_START_CAPSULE          # $s0 = address of the next capsule
+    addi $s0, $s0, 8                    # Get the second capsule
+    la $t0, NEXT_CAPSULE_STATE          # $t0 = address of the next capsule state
+    lw $t1, 0($s0)
+    sw $t1, 0($t0)                      # Copy the second capsule top left color to the next capsule state
+    lw $t1, 128($s0)
+    sw $t1, 8($t0)                      # Copy the second capsule bottom left color to the next capsule state
+    sw $zero, 4($t0)                    # Set the second capsule top right color to black
+    sw $zero, 12($t0)                   # Set the second capsule bottom right color to black
+
+    li $a3, 2
+    jal set_new_capsule
+    lw $s0, ADDR_START_CAPSULE
+    addi $s0, $s0, 8
+    jal capsule_to_left
+
+    lw $s0, ADDR_START_CAPSULE           # $s0 = address of the next capsule
+    addi $s0, $s0, 16                   # Get the second capsule
+    la $t0, NEXT_CAPSULE_STATE          # $t0 = address of the next capsule state
+    lw $t1, 0($s0)
+    sw $t1, 0($t0)                      # Copy the second capsule top left color to the next capsule state
+    lw $t1, 128($s0)
+    sw $t1, 8($t0)                      # Copy the second capsule bottom left color to the next capsule state
+    sw $zero, 4($t0)                    # Set the second capsule top right color to black
+    sw $zero, 12($t0)                   # Set the second capsule bottom right color to black
+    li $a3, 2
+    jal set_new_capsule
+    lw $s0, ADDR_START_CAPSULE
+    addi $s0, $s0, 16
+    jal capsule_to_left
+
+    lw $s0, ADDR_START_CAPSULE           # $s0 = address of the next capsule
+    addi $s0, $s0, 24                   # Get the second capsule
+    la $t0, NEXT_CAPSULE_STATE          # $t0 = address of the next capsule state
+    lw $t1, 0($s0)
+    sw $t1, 0($t0)                      # Copy the second capsule top left color to the next capsule state
+    lw $t1, 128($s0)
+    sw $t1, 8($t0)                      # Copy the second capsule bottom left color to the next capsule state
+    sw $zero, 4($t0)                    # Set the second capsule top right color to black
+    sw $zero, 12($t0)                   # Set the second capsule bottom right color to black
+    li $a3, 2
+    jal set_new_capsule
+    lw $s0, ADDR_START_CAPSULE
+    addi $s0, $s0, 24
+    jal capsule_to_left
+
+    lw $s0, ADDR_START_CAPSULE           # $s0 = address of the next capsule
+    addi $s0, $s0, 32                   # Get the second capsule
+    la $t0, NEXT_CAPSULE_STATE          # $t0 = address of the next capsule state
+    lw $t1, 0($s0)
+    sw $t1, 0($t0)                      # Copy the second capsule top left color to the next capsule state
+    lw $t1, 128($s0)
+    sw $t1, 8($t0)                      # Copy the second capsule bottom left color to the next capsule state
+    sw $zero, 4($t0)                    # Set the second capsule top right color to black
+    sw $zero, 12($t0)                   # Set the second capsule bottom right color to black
+    li $a3, 2
+    jal set_new_capsule
+    lw $s0, ADDR_START_CAPSULE
+    addi $s0, $s0, 32
+    jal capsule_to_left
+
+
+    la $t0, CURR_CAPSULE_STATE          # $t0 = address of the current capsule state
+    RESTORE_FROM_STACK($t1)
+    sw $t1, 12($t0)
+    RESTORE_FROM_STACK($t1)
+    sw $t1, 8($t0)
+    RESTORE_FROM_STACK($t1)
+    sw $t1, 4($t0)
+    RESTORE_FROM_STACK($t1)
+    sw $t1, 0($t0)
+    RESTORE_FROM_STACK($s0)
+
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+##############################################################################
+# Function to move the new capsules to its position
+generate_animate_new_capsules:
+    STORE_TO_STACK($ra)
+    STORE_TO_STACK($s0)
+    la $t0, CURR_CAPSULE_STATE          # $t0 = address of the current capsule state
+    lw $t1, 0($t0)
+    STORE_TO_STACK($t1)
+    lw $t1, 4($t0)
+    STORE_TO_STACK($t1)
+    lw $t1, 8($t0)
+    STORE_TO_STACK($t1)
+    lw $t1, 12($t0)
+    STORE_TO_STACK($t1)
+
+    jal init_capsule_state
+    jal generate_random_capsule_colors
+    jal draw_next_capsule
+
+    jal set_new_capsule
+    lw $s0, ADDR_NEXT_CAPSULE
+    li $a3, 4
+    jal capsule_to_bottom
+    la $t0, CURR_CAPSULE_STATE          # $t0 = address of the current capsule state
+    RESTORE_FROM_STACK($t1)
+    sw $t1, 12($t0)
+    RESTORE_FROM_STACK($t1)
+    sw $t1, 8($t0)
+    RESTORE_FROM_STACK($t1)
+    sw $t1, 4($t0)
+    RESTORE_FROM_STACK($t1)
+    sw $t1, 0($t0)
+    RESTORE_FROM_STACK($s0)
+    RESTORE_FROM_STACK($ra)
+    jr $ra
