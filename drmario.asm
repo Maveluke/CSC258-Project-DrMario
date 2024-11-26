@@ -38,6 +38,49 @@
     done:
 .end_macro
 
+.macro PLAY_SOUND(%pitch, %duration, %instrument, %volume)
+    li $v0, 31                # MIDI sound syscall
+    li $a0, %pitch           # pitch
+    li $a1, %duration        # duration in milliseconds
+    li $a2, %instrument      # instrument
+    li $a3, %volume          # volume
+    syscall
+
+   # Add a small delay after the sound
+    li $v0, 32               # syscall for sleep
+    move $a0, $a1            # use same duration as sound for sleep
+    syscall
+.end_macro
+
+# Wall collision sound
+.macro PLAY_WALL_COLLISION()
+    PLAY_SOUND(69, 169, 115, 100)
+.end_macro
+
+# Ground collision sound
+.macro PLAY_GROUND_COLLISION()
+    PLAY_SOUND(50, 300, 112, 120)
+.end_macro
+
+# Victory sound
+.macro PLAY_VICTORY_SOUND()
+    PLAY_SOUND(70, 200, 56, 150)
+    PLAY_SOUND(75, 200, 56, 150)
+    PLAY_SOUND(80, 400, 56, 150)
+.end_macro
+
+# Game over sound
+.macro PLAY_GAME_OVER()
+    PLAY_SOUND(60, 300, 72, 150)
+    PLAY_SOUND(55, 300, 72, 150)
+    PLAY_SOUND(50, 600, 72, 150)
+.end_macro
+
+# Can't rotate sound
+.macro PLAY_CANT_ROTATE()
+    PLAY_SOUND(65, 100, 112, 100)
+.end_macro
+
     .data
 ##############################################################################
 # Immutable Data
@@ -189,7 +232,7 @@ game_loop:
 
     CLEAR_ALL_KEYBOARD_INPUTS()
     # Check if the new capsule can move down
-    beq $v0, 1, game_end
+    beq $v0, 1, game_lost
 
     # Generate the next capsule state
     jal init_capsule_state
@@ -257,9 +300,19 @@ game_loop:
 
     generate_new_capsule:
         # If there's no more viruses, end the game
-        beq $s1, $zero, game_end
+        beq $s1, $zero, game_won
         # There's at least one virus left, generate a new capsule
         j game_loop
+game_lost:
+    # Play game over sound
+    PLAY_GAME_OVER()
+    # End the game
+    j game_end
+game_won:
+    # Play victory sound
+    PLAY_VICTORY_SOUND()
+    # End the game
+    j game_end
 game_end:
     li $v0, 10                  # Terminate the program gracefully
     syscall
@@ -586,7 +639,7 @@ move_left:
     addi $t0, $s0, 128                  # $t0 = address of the bottom left pixel of the capsule block
     addi $t0, $t0, -4                   # $t0 = new address of the bottom left pixel of the capsule block after moving left
     lw $t1, 0($t0)                      # $t1 = color of the new address of the bottom left pixel of the capsule block
-    bne $t1, $t9, ml_end                # Check if the new address of the bottom left pixel is occupied (isn't black)
+    bne $t1, $t9, ml_cant_move          # Check if the new address of the bottom left pixel is occupied (isn't black)
     # The bottom left pixel of the capsule block can move left
     # Check if other pixels of the capsule block can move left
     jal get_pattern                     # Get the pattern of the current capsule block
@@ -596,8 +649,11 @@ move_left:
     addi $t0, $t0, -4                   # $t0 = new address of the top left pixel of the capsule block after moving left
     lw $t1, 0($t0)                      # $t1 = color of the new address of the top left pixel of the capsule block
     beq $t1, $t9, ml_can_move           # Check if the new address of the top left pixel isn't occupied (is black)
-    j ml_end                            # The capsule can't move left
+    j ml_cant_move                      # The capsule can't move left
 
+    ml_cant_move:
+        PLAY_WALL_COLLISION()
+        j ml_end                        # The capsule can't move left
     ml_can_move:
         jal remove_capsule
         addi $s0, $s0, -4               # Move the capsule block left by 1 pixel
@@ -627,20 +683,23 @@ move_right:
         lw $t1, 0($t0)                  # $t1 = color of the new address of the bottom right pixel of the capsule block
         beq $t1, $t9, mr_can_move       # Check if the new address of the bottom right pixel isn't occupied (is black)
         # The bottom right pixel of the capsule block can't move right
-        j mr_end
+        j mr_cant_move
     mr_pattern_2:
         # Check if the top left pixel of the capsule block can move right
         addi $t0, $s0, 0                # $t0 = address of the top left pixel of the capsule block
         addi $t0, $t0, 4                # $t0 = new address of the top left pixel of the capsule block after moving right
         lw $t1, 0($t0)                  # $t1 = color of the new address of the top left pixel of the capsule block
-        bne $t1, $t9, mr_end            # Check if the new address of the top left pixel is occupied (isn't black)
+        bne $t1, $t9, mr_cant_move            # Check if the new address of the top left pixel is occupied (isn't black)
         # The top left pixel of the capsule block can move right
         # Check if the bottom left pixel of the capsule block can move right
         addi $t0, $s0, 128              # $t0 = address of the bottom left pixel of the capsule block
         addi $t0, $t0, 4                # $t0 = new address of the bottom left pixel of the capsule block after moving right
         lw $t1, 0($t0)                  # $t1 = color of the new address of the bottom left pixel of the capsule block
-        bne $t1, $t9, mr_end            # Check if the new address of the bottom left pixel is occupied (isn't black)
+        bne $t1, $t9, mr_cant_move            # Check if the new address of the bottom left pixel is occupied (isn't black)
         j mr_can_move                   # The bottom left pixel of the capsule block also can move right
+    mr_cant_move:
+        PLAY_WALL_COLLISION()
+        j mr_end                        # The capsule can't move right
     mr_can_move:
         jal remove_capsule
         addi $s0, $s0, 4                # Move the capsule block right by 1 pixel
@@ -685,6 +744,7 @@ move_down:
         li $v0, 0                       # $v0 = 0 since the capsule block can move down
         j md_end
     md_cant_move:
+        PLAY_GROUND_COLLISION()
         # Store the offsets of both halves of the capsule block in AOCH
         jal get_pattern                 # Get the pattern of the current capsule block
         la $t0, ALLOC_OFFSET_CAPSULE_HALF
@@ -743,12 +803,14 @@ rotate:
         addi $t0, $s0, 0                # $t0 = address of the top left pixel of the capsule block
         lw $t1, 0($t0)                  # $t1 = color of the top left pixel of the capsule block
         beq $t1, $t9, r_can_rotate_1    # Check if the top left pixel is black
+        PLAY_CANT_ROTATE()
         j r_end                         # The capsule block can't rotate
     r_pattern_2:
         # Check if the bottom right pixel of the capsule block is empty (black)
         addi $t0, $s0, 132              # $t0 = address of the bottom right pixel of the capsule block
         lw $t1, 0($t0)                  # $t1 = color of the bottom right pixel of the capsule block
         beq $t1, $t9, r_can_rotate_2    # Check if the bottom right pixel is black
+        PLAY_CANT_ROTATE()
         j r_end                         # The capsule block can't rotate
     r_can_rotate_1:
         # Rotate the capsule block from pattern 1 to pattern 2
@@ -1661,6 +1723,20 @@ move_down_half_capsule:
 
         j mdhc_loop                     # Repeat until the half capsule can't move down anymore
     mdhc_end:
+        beq $v0, 0, mdhc_end_no_falling          # Check if the half capsule move at least once
+        # The half capsule move at least once, play the collision sound
+        STORE_TO_STACK($v0)
+        STORE_TO_STACK($a0)
+        STORE_TO_STACK($a1)
+        STORE_TO_STACK($a2)
+        STORE_TO_STACK($a3)
+        PLAY_GROUND_COLLISION()         # Play the collision sound
+        RESTORE_FROM_STACK($a3)
+        RESTORE_FROM_STACK($a2)
+        RESTORE_FROM_STACK($a1)
+        RESTORE_FROM_STACK($a0)
+        RESTORE_FROM_STACK($v0)
+    mdhc_end_no_falling:
         RESTORE_FROM_STACK($a0)
         jr $ra
 
@@ -1775,6 +1851,20 @@ move_down_full_capsule:
 
         j mdfc_loop_horizontal              # Repeat until the half capsule and its other half can't move down anymore
     mdfc_end:
+        beq $v0, 0, mdfc_end_no_falling          # Check if the half capsule move at least once
+        # The half capsule move at least once, play the collision sound
+        STORE_TO_STACK($v0)
+        STORE_TO_STACK($a0)
+        STORE_TO_STACK($a1)
+        STORE_TO_STACK($a2)
+        STORE_TO_STACK($a3)
+        PLAY_GROUND_COLLISION()         # Play the collision sound
+        RESTORE_FROM_STACK($a3)
+        RESTORE_FROM_STACK($a2)
+        RESTORE_FROM_STACK($a1)
+        RESTORE_FROM_STACK($a0)
+        RESTORE_FROM_STACK($v0)
+    mdfc_end_no_falling:
         RESTORE_FROM_STACK($a1)
         RESTORE_FROM_STACK($a0)
         jr $ra
