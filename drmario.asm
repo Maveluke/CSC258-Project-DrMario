@@ -28,6 +28,59 @@
     addi $sp, $sp, 4        # increment stack pointer by 4 bytes (1 word)
 .end_macro
 
+.macro CLEAR_ALL_KEYBOARD_INPUTS()
+    lw $t0, ADDR_KBRD        # Load keyboard controller address
+    clear_loop:
+        lw $t1, 0($t0)          # Check if there's input ready
+        bne $t1, 1, done        # If no input ready, we're done
+        lw $t1, 4($t0)          # Read (and discard) the input
+        j clear_loop            # Check for more inputs
+    done:
+.end_macro
+
+.macro PLAY_SOUND(%pitch, %duration, %instrument, %volume)
+    li $v0, 31                # MIDI sound syscall
+    li $a0, %pitch           # pitch
+    li $a1, %duration        # duration in milliseconds
+    li $a2, %instrument      # instrument
+    li $a3, %volume          # volume
+    syscall
+
+   # Add a small delay after the sound
+    li $v0, 32               # syscall for sleep
+    move $a0, $a1            # use same duration as sound for sleep
+    syscall
+.end_macro
+
+# Wall collision sound
+.macro PLAY_WALL_COLLISION()
+    PLAY_SOUND(69, 169, 115, 100)
+.end_macro
+
+# Ground collision sound
+.macro PLAY_GROUND_COLLISION()
+    PLAY_SOUND(50, 300, 115, 120)
+.end_macro
+
+# Victory sound
+.macro PLAY_VICTORY_SOUND()
+    PLAY_SOUND(70, 200, 56, 150)
+    PLAY_SOUND(75, 200, 56, 150)
+    PLAY_SOUND(80, 400, 56, 150)
+.end_macro
+
+# Game over sound
+.macro PLAY_GAME_OVER()
+    PLAY_SOUND(60, 300, 72, 150)
+    PLAY_SOUND(55, 300, 72, 150)
+    PLAY_SOUND(50, 600, 72, 150)
+.end_macro
+
+# Can't rotate sound
+.macro PLAY_CANT_ROTATE()
+    PLAY_SOUND(65, 100, 115, 100)
+.end_macro
+
     .data
 ##############################################################################
 # Immutable Data
@@ -57,9 +110,9 @@ LIGHT_GRAY:
 DARK_GRAY:
     .word 0x888888
 ADDR_NEXT_CAPSULE:
-    .word 0x100084b0
+    .word 0x10008230
 ADDR_START_CAPSULE:
-    .word 0x100084a0
+    .word 0x10008230
 BOTTLE_TL_X:
     .word 3
 BOTTLE_TL_Y:
@@ -152,44 +205,11 @@ game_loop:
     # Initialize the new capsule
     jal set_new_capsule
     jal draw_capsule
-    li $v0, 32
-   	li $a0, 50
-   	syscall
-    jal rotate
-    li $v0, 32
-   	li $a0, 50
-   	syscall
-    jal move_down
+    jal capsule_to_bottle_animation
 
-    li $v0, 32
-   	li $a0, 50
-   	syscall
-    jal rotate
-    li $v0, 32
-   	li $a0, 50
-   	syscall
-    jal move_down
-
-    li $v0, 32
-   	li $a0, 50
-   	syscall
-    jal rotate
-    li $v0, 32
-   	li $a0, 50
-   	syscall
-    jal move_down
-
-    li $v0, 32
-   	li $a0, 50
-   	syscall
-    jal rotate
-    li $v0, 32
-   	li $a0, 50
-   	syscall
-    jal move_down
-
+    CLEAR_ALL_KEYBOARD_INPUTS()
     # Check if the new capsule can move down
-    beq $v0, 1, game_end
+    beq $v0, 1, game_lost
 
     # Generate the next capsule state
     jal init_capsule_state
@@ -273,9 +293,19 @@ game_loop:
 
     generate_new_capsule:
         # If there's no more viruses, end the game
-        beq $s1, $zero, game_end
+        beq $s1, $zero, game_won
         # There's at least one virus left, generate a new capsule
         j game_loop
+game_lost:
+    # Play game over sound
+    PLAY_GAME_OVER()
+    # End the game
+    j game_end
+game_won:
+    # Play victory sound
+    PLAY_VICTORY_SOUND()
+    # End the game
+    j game_end
 game_end:
     li $v0, 10                  # Terminate the program gracefully
     syscall
@@ -602,7 +632,7 @@ move_left:
     addi $t0, $s0, 128                  # $t0 = address of the bottom left pixel of the capsule block
     addi $t0, $t0, -4                   # $t0 = new address of the bottom left pixel of the capsule block after moving left
     lw $t1, 0($t0)                      # $t1 = color of the new address of the bottom left pixel of the capsule block
-    bne $t1, $t9, ml_end                # Check if the new address of the bottom left pixel is occupied (isn't black)
+    bne $t1, $t9, ml_cant_move          # Check if the new address of the bottom left pixel is occupied (isn't black)
     # The bottom left pixel of the capsule block can move left
     # Check if other pixels of the capsule block can move left
     jal get_pattern                     # Get the pattern of the current capsule block
@@ -612,8 +642,11 @@ move_left:
     addi $t0, $t0, -4                   # $t0 = new address of the top left pixel of the capsule block after moving left
     lw $t1, 0($t0)                      # $t1 = color of the new address of the top left pixel of the capsule block
     beq $t1, $t9, ml_can_move           # Check if the new address of the top left pixel isn't occupied (is black)
-    j ml_end                            # The capsule can't move left
+    j ml_cant_move                      # The capsule can't move left
 
+    ml_cant_move:
+        PLAY_WALL_COLLISION()
+        j ml_end                        # The capsule can't move left
     ml_can_move:
         jal remove_capsule
         addi $s0, $s0, -4               # Move the capsule block left by 1 pixel
@@ -643,20 +676,23 @@ move_right:
         lw $t1, 0($t0)                  # $t1 = color of the new address of the bottom right pixel of the capsule block
         beq $t1, $t9, mr_can_move       # Check if the new address of the bottom right pixel isn't occupied (is black)
         # The bottom right pixel of the capsule block can't move right
-        j mr_end
+        j mr_cant_move
     mr_pattern_2:
         # Check if the top left pixel of the capsule block can move right
         addi $t0, $s0, 0                # $t0 = address of the top left pixel of the capsule block
         addi $t0, $t0, 4                # $t0 = new address of the top left pixel of the capsule block after moving right
         lw $t1, 0($t0)                  # $t1 = color of the new address of the top left pixel of the capsule block
-        bne $t1, $t9, mr_end            # Check if the new address of the top left pixel is occupied (isn't black)
+        bne $t1, $t9, mr_cant_move            # Check if the new address of the top left pixel is occupied (isn't black)
         # The top left pixel of the capsule block can move right
         # Check if the bottom left pixel of the capsule block can move right
         addi $t0, $s0, 128              # $t0 = address of the bottom left pixel of the capsule block
         addi $t0, $t0, 4                # $t0 = new address of the bottom left pixel of the capsule block after moving right
         lw $t1, 0($t0)                  # $t1 = color of the new address of the bottom left pixel of the capsule block
-        bne $t1, $t9, mr_end            # Check if the new address of the bottom left pixel is occupied (isn't black)
+        bne $t1, $t9, mr_cant_move            # Check if the new address of the bottom left pixel is occupied (isn't black)
         j mr_can_move                   # The bottom left pixel of the capsule block also can move right
+    mr_cant_move:
+        PLAY_WALL_COLLISION()
+        j mr_end                        # The capsule can't move right
     mr_can_move:
         jal remove_capsule
         addi $s0, $s0, 4                # Move the capsule block right by 1 pixel
@@ -723,6 +759,7 @@ move_down:
         li $v0, 0                       # $v0 = 0 since the capsule block can move down
         j md_end
     md_cant_move:
+        PLAY_GROUND_COLLISION()
         # Store the offsets of both halves of the capsule block in AOCH
         jal get_pattern                 # Get the pattern of the current capsule block
         la $t0, ALLOC_OFFSET_CAPSULE_HALF
@@ -781,12 +818,14 @@ rotate:
         addi $t0, $s0, 0                # $t0 = address of the top left pixel of the capsule block
         lw $t1, 0($t0)                  # $t1 = color of the top left pixel of the capsule block
         beq $t1, $t9, r_can_rotate_1    # Check if the top left pixel is black
+        PLAY_CANT_ROTATE()
         j r_end                         # The capsule block can't rotate
     r_pattern_2:
         # Check if the bottom right pixel of the capsule block is empty (black)
         addi $t0, $s0, 132              # $t0 = address of the bottom right pixel of the capsule block
         lw $t1, 0($t0)                  # $t1 = color of the bottom right pixel of the capsule block
         beq $t1, $t9, r_can_rotate_2    # Check if the bottom right pixel is black
+        PLAY_CANT_ROTATE()
         j r_end                         # The capsule block can't rotate
     r_can_rotate_1:
         # Rotate the capsule block from pattern 1 to pattern 2
@@ -1697,6 +1736,20 @@ move_down_half_capsule:
 
         j mdhc_loop                     # Repeat until the half capsule can't move down anymore
     mdhc_end:
+        beq $v0, 0, mdhc_end_no_falling          # Check if the half capsule move at least once
+        # The half capsule move at least once, play the collision sound
+        STORE_TO_STACK($v0)
+        STORE_TO_STACK($a0)
+        STORE_TO_STACK($a1)
+        STORE_TO_STACK($a2)
+        STORE_TO_STACK($a3)
+        PLAY_GROUND_COLLISION()         # Play the collision sound
+        RESTORE_FROM_STACK($a3)
+        RESTORE_FROM_STACK($a2)
+        RESTORE_FROM_STACK($a1)
+        RESTORE_FROM_STACK($a0)
+        RESTORE_FROM_STACK($v0)
+    mdhc_end_no_falling:
         RESTORE_FROM_STACK($a0)
         jr $ra
 
@@ -1811,6 +1864,20 @@ move_down_full_capsule:
 
         j mdfc_loop_horizontal              # Repeat until the half capsule and its other half can't move down anymore
     mdfc_end:
+        beq $v0, 0, mdfc_end_no_falling          # Check if the half capsule move at least once
+        # The half capsule move at least once, play the collision sound
+        STORE_TO_STACK($v0)
+        STORE_TO_STACK($a0)
+        STORE_TO_STACK($a1)
+        STORE_TO_STACK($a2)
+        STORE_TO_STACK($a3)
+        PLAY_GROUND_COLLISION()         # Play the collision sound
+        RESTORE_FROM_STACK($a3)
+        RESTORE_FROM_STACK($a2)
+        RESTORE_FROM_STACK($a1)
+        RESTORE_FROM_STACK($a0)
+        RESTORE_FROM_STACK($v0)
+    mdfc_end_no_falling:
         RESTORE_FROM_STACK($a1)
         RESTORE_FROM_STACK($a0)
         jr $ra
@@ -2008,6 +2075,309 @@ pause:
         RESTORE_FROM_STACK($ra)
         jr $ra
 
+##############################################################################
+# Function to draw score change animation
+# Parameters:
+# - $a2 = score change
+# - $a3 = where to draw the score change in the display (in address)
+draw_blink_blink:
+    STORE_TO_STACK($ra)
+    li $t0, 0x888888                    # $t0 = gray
+    li $t1, 0xaaaaaa                    # $t1 = light gray
+    lw $t2, BLACK                       # $t2 = black
+
+    sw $t0, 0($a3)                      # Draw gray in the current pixel
+    sw $t0, 128($a3)                    # Draw gray in one pixel below
+    sw $t0, 256($a3)                    # Draw gray in two pixels below
+    sw $t0, 384($a3)                    # Draw gray in three pixels below
+    sw $t0, 512($a3)                    # Draw gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t0, 4($a3)                      # Draw gray in the current pixel
+    sw $t0, 132($a3)                    # Draw gray in one pixel below
+    sw $t0, 260($a3)                    # Draw gray in two pixels below
+    sw $t0, 388($a3)                    # Draw gray in three pixels below
+    sw $t0, 516($a3)                    # Draw gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t0, 8($a3)                      # Draw gray in the current pixel
+    sw $t0, 136($a3)                    # Draw gray in one pixel below
+    sw $t0, 264($a3)                    # Draw gray in two pixels below
+    sw $t0, 392($a3)                    # Draw gray in three pixels below
+    sw $t0, 520($a3)                    # Draw gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t1, 0($a3)                      # Draw light gray in the current pixel
+    sw $t1, 128($a3)                    # Draw light gray in one pixel below
+    sw $t1, 256($a3)                    # Draw light gray in two pixels below
+    sw $t1, 384($a3)                    # Draw light gray in three pixels below
+    sw $t1, 512($a3)                    # Draw light gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t1, 4($a3)                      # Draw light gray in the current pixel
+    sw $t1, 132($a3)                    # Draw light gray in one pixel below
+    sw $t1, 260($a3)                    # Draw light gray in two pixels below
+    sw $t1, 388($a3)                    # Draw light gray in three pixels below
+    sw $t1, 516($a3)                    # Draw light gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t1, 8($a3)                      # Draw light gray in the current pixel
+    sw $t1, 136($a3)                    # Draw light gray in one pixel below
+    sw $t1, 264($a3)                    # Draw light gray in two pixels below
+    sw $t1, 392($a3)                    # Draw light gray in three pixels below
+    sw $t1, 520($a3)                    # Draw light gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t2, 0($a3)                      # Draw black in the current pixel
+    sw $t2, 128($a3)                    # Draw black in one pixel below
+    sw $t2, 256($a3)                    # Draw black in two pixels below
+    sw $t2, 384($a3)                    # Draw black in three pixels below
+    sw $t2, 512($a3)                    # Draw black in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t2, 4($a3)                      # Draw black in the current pixel
+    sw $t2, 132($a3)                    # Draw black in one pixel below
+    sw $t2, 260($a3)                    # Draw black in two pixels below
+    sw $t2, 388($a3)                    # Draw black in three pixels below
+    sw $t2, 516($a3)                    # Draw black in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t2, 8($a3)                      # Draw black in the current pixel
+    sw $t2, 136($a3)                    # Draw black in one pixel below
+    sw $t2, 264($a3)                    # Draw black in two pixels below
+    sw $t2, 392($a3)                    # Draw black in three pixels below
+    sw $t2, 520($a3)                    # Draw black in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t1, 0($a3)                      # Draw light gray in the current pixel
+    sw $t1, 128($a3)                    # Draw light gray in one pixel below
+    sw $t1, 256($a3)                    # Draw light gray in two pixels below
+    sw $t1, 384($a3)                    # Draw light gray in three pixels below
+    sw $t1, 512($a3)                    # Draw light gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t1, 4($a3)                      # Draw light gray in the current pixel
+    sw $t1, 132($a3)                    # Draw light gray in one pixel below
+    sw $t1, 260($a3)                    # Draw light gray in two pixels below
+    sw $t1, 388($a3)                    # Draw light gray in three pixels below
+    sw $t1, 516($a3)                    # Draw light gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t1, 8($a3)                      # Draw light gray in the current pixel
+    sw $t1, 136($a3)                    # Draw light gray in one pixel below
+    sw $t1, 264($a3)                    # Draw light gray in two pixels below
+    sw $t1, 392($a3)                    # Draw light gray in three pixels below
+    sw $t1, 520($a3)                    # Draw light gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t0, 0($a3)                      # Draw gray in the current pixel
+    sw $t0, 128($a3)                    # Draw gray in one pixel below
+    sw $t0, 256($a3)                    # Draw gray in two pixels below
+    sw $t0, 384($a3)                    # Draw gray in three pixels below
+    sw $t0, 512($a3)                    # Draw gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t0, 4($a3)                      # Draw gray in the current pixel
+    sw $t0, 132($a3)                    # Draw gray in one pixel below
+    sw $t0, 260($a3)                    # Draw gray in two pixels below
+    sw $t0, 388($a3)                    # Draw gray in three pixels below
+    sw $t0, 516($a3)                    # Draw gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t0, 8($a3)                      # Draw gray in the current pixel
+    sw $t0, 136($a3)                    # Draw gray in one pixel below
+    sw $t0, 264($a3)                    # Draw gray in two pixels below
+    sw $t0, 392($a3)                    # Draw gray in three pixels below
+    sw $t0, 520($a3)                    # Draw gray in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t2, 0($a3)                      # Draw black in the current pixel
+    sw $t2, 128($a3)                    # Draw black in one pixel below
+    sw $t2, 256($a3)                    # Draw black in two pixels below
+    sw $t2, 384($a3)                    # Draw black in three pixels below
+    sw $t2, 512($a3)                    # Draw black in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t2, 4($a3)                      # Draw black in the current pixel
+    sw $t2, 132($a3)                    # Draw black in one pixel below
+    sw $t2, 260($a3)                    # Draw black in two pixels below
+    sw $t2, 388($a3)                    # Draw black in three pixels below
+    sw $t2, 516($a3)                    # Draw black in four pixels below
+
+    li $v0, 32
+    li $a0, 10
+    syscall
+
+    sw $t2, 8($a3)                      # Draw black in the current pixel
+    sw $t2, 136($a3)                    # Draw black in one pixel below
+    sw $t2, 264($a3)                    # Draw black in two pixels below
+    sw $t2, 392($a3)                    # Draw black in three pixels below
+    sw $t2, 520($a3)                    # Draw black in four pixels below
+
+    beq $a2, 4, start_draw_four
+    beq $a2, 3, start_draw_three
+    beq $a2, 2, start_draw_two
+    beq $a2, 1, start_draw_one
+    beq $a2, 0, start_draw_zero
+
+    start_draw_four:
+        jal draw_four
+        j dbb_end
+    start_draw_three:
+        jal draw_three
+        j dbb_end
+    start_draw_two:
+        jal draw_two
+        j dbb_end
+    start_draw_one:
+        jal draw_one
+        j dbb_end
+    start_draw_zero:
+        jal draw_zero
+        j dbb_end
+
+    dbb_end:
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+##############################################################################
+# Function to draw score 4
+# Parameters:
+# - $a3 = where to draw score 4 in the display (in address)
+draw_four:
+    lw $t0, WHITE                       # $t0 = white
+    sw $t0, 0($a3)
+    sw $t0, 128($a3)
+    sw $t0, 256($a3)
+    sw $t0, 8($a3)
+    sw $t0, 136($a3)
+    sw $t0, 264($a3)
+    sw $t0, 260($a3)
+    sw $t0, 392($a3)
+    sw $t0, 520($a3)
+    jr $ra
+
+
+##############################################################################
+# Function to draw score 3
+# Parameters:
+# - $a3 = where to draw score 3 in the display (in address)
+draw_three:
+    lw $t0, WHITE                       # $t0 = white
+    sw $t0, 0($a3)
+    sw $t0, 4($a3)
+    sw $t0, 8($a3)
+    sw $t0, 136($a3)
+    sw $t0, 256($a3)
+    sw $t0, 260($a3)
+    sw $t0, 264($a3)
+    sw $t0, 392($a3)
+    sw $t0, 512($a3)
+    sw $t0, 516($a3)
+    sw $t0, 520($a3)
+    jr $ra
+
+
+##############################################################################
+# Function to draw score 2
+# Parameters:
+# - $a3 = where to draw score 2 in the display (in address)
+draw_two:
+    lw $t0, WHITE                       # $t0 = white
+    sw $t0, 0($a3)
+    sw $t0, 4($a3)
+    sw $t0, 8($a3)
+    sw $t0, 136($a3)
+    sw $t0, 256($a3)
+    sw $t0, 260($a3)
+    sw $t0, 264($a3)
+    sw $t0, 384($a3)
+    sw $t0, 512($a3)
+    sw $t0, 516($a3)
+    sw $t0, 520($a3)
+    jr $ra
+
+##############################################################################
+# Function to draw score 1
+# Parameters:
+# - $a3 = where to draw score 1 in the display (in address)
+draw_one:
+    lw $t0, WHITE                       # $t0 = white
+    sw $t0, 8($a3)
+    sw $t0, 136($a3)
+    sw $t0, 264($a3)
+    sw $t0, 392($a3)
+    sw $t0, 520($a3)
+    jr $ra
+
+
+##############################################################################
+# Function to draw score 0
+# Parameters:
+# - $a3 = where to draw score 0 in the display (in address)
+draw_zero:
+    lw $t0, WHITE                       # $t0 = white
+    sw $t0, 0($a3)
+    sw $t0, 4($a3)
+    sw $t0, 8($a3)
+    sw $t0, 128($a3)
+    sw $t0, 136($a3)
+    sw $t0, 256($a3)
+    sw $t0, 264($a3)
+    sw $t0, 384($a3)
+    sw $t0, 392($a3)
+    sw $t0, 512($a3)
+    sw $t0, 516($a3)
+    sw $t0, 520($a3)
+    jr $ra
 
 ##############################################################################
 # Function to draw the outline (expected dropping point) of current capsule
@@ -2146,3 +2516,106 @@ check_unoccupied:
     co_occupied:
         li $v0, 0                   # The capsule is not black nor light gray, set return value to 0
         jr $ra
+
+##############################################################################
+# Function to move the capsule to the left and rotate it
+# Parameters: $a3 = how many times to move the capsule to the left
+capsule_to_left:
+    STORE_TO_STACK($ra)
+    li $t0, 0
+    ctl_rotate_move_left_loop: beq $t0, $a3, ctl_rotate_move_left_end
+        STORE_TO_STACK($t0)
+        STORE_TO_STACK($a3)
+        jal rotate
+        RESTORE_FROM_STACK($a3)
+        RESTORE_FROM_STACK($t0)
+
+        li $v0, 32
+        li $a0, 50
+        syscall
+        STORE_TO_STACK($t0)
+        STORE_TO_STACK($a3)
+        jal move_left
+        RESTORE_FROM_STACK($a3)
+        RESTORE_FROM_STACK($t0)
+        li $v0, 32
+        li $a0, 50
+        addi $t0, $t0, 1
+        j ctl_rotate_move_left_loop
+
+    ctl_rotate_move_left_end:
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+
+##############################################################################
+# Function to move the capsule to the right and rotate it
+# Parameters: $a3 = how many times to move the capsule to the right
+capsule_to_right:
+    STORE_TO_STACK($ra)
+    li $t0, 0
+    ctr_rotate_move_right_loop: beq $t0, $a3, ctr_rotate_move_right_end
+        STORE_TO_STACK($t0)
+        STORE_TO_STACK($a3)
+        jal rotate
+        RESTORE_FROM_STACK($a3)
+        RESTORE_FROM_STACK($t0)
+        li $v0, 32
+        li $a0, 50
+        syscall
+        STORE_TO_STACK($t0)
+        STORE_TO_STACK($a3)
+        jal move_right
+        RESTORE_FROM_STACK($a3)
+        RESTORE_FROM_STACK($t0)
+        li $v0, 32
+        li $a0, 50
+        addi $t0, $t0, 1
+        j ctr_rotate_move_right_loop
+
+    ctr_rotate_move_right_end:
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+
+##############################################################################
+# Function to move the capsule to the bottom and rotate it
+# Parameters: $a3 = how many times to move the capsule to the bottom
+capsule_to_bottom:
+    STORE_TO_STACK($ra)
+    li $t0, 0
+    ctb_rotate_move_down_loop: beq $t0, $a3, ctb_rotate_move_down_end
+        STORE_TO_STACK($t0)
+        STORE_TO_STACK($a3)
+        jal rotate
+        RESTORE_FROM_STACK($a3)
+        RESTORE_FROM_STACK($t0)
+        li $v0, 32
+        li $a0, 50
+        syscall
+        STORE_TO_STACK($t0)
+        STORE_TO_STACK($a3)
+        jal move_down
+        RESTORE_FROM_STACK($a3)
+        RESTORE_FROM_STACK($t0)
+        li $v0, 32
+        li $a0, 50
+        addi $t0, $t0, 1
+        j ctb_rotate_move_down_loop
+
+    ctb_rotate_move_down_end:
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+##############################################################################
+# Function for moving capsule to the bottle animation
+capsule_to_bottle_animation:
+    STORE_TO_STACK($ra)
+    li $a3, 4
+    jal capsule_to_left
+    li $a3, 8
+    jal capsule_to_bottom
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+
