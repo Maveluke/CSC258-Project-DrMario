@@ -205,17 +205,14 @@ game_loop:
     jal set_adjacent_capsule
     #jal draw_capsule
     # TODO: If the mouth of the bottle is blocked, end the game
+    lw $t0, ADDR_BOTTLE_MOUTH
+    lw $t1, 0($t0)
+    bne $t1, 0, game_lost
     jal capsule_to_bottle_animation
     jal move_capsules_left
     jal generate_animate_new_capsules
     CLEAR_ALL_KEYBOARD_INPUTS()
-    # Check if the new capsule can move down
-    beq $v0, 1, game_lost
 
-    # TODO: animation to move the next capsules to the left
-    # Generate the next capsule state
-
-    # TODO: animation for the next capsule
     jal draw_outline
 
     gl_after_generate:
