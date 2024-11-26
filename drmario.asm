@@ -256,6 +256,7 @@ game_loop:
         jal draw_outline
         j after_handling_move
     debug_change_capsule:
+        jal delete_outline
         jal remove_capsule
         j generate_new_capsule
     handle_reset:
@@ -269,8 +270,7 @@ game_loop:
         j generate_new_capsule
     handle_falling:
         jal scan_falling_capsules
-        beq $v1, 1, handle_remove_consecutives
-        j generate_new_capsule
+        j handle_remove_consecutives
     after_handling_move:
     # 2a. Check for collisions
 	# 2b. Update locations (capsules)
@@ -1660,7 +1660,7 @@ draw_viruses:
 # Function to check for falling capsules (in the entire bottle)
 # Run a single vertical scan (from bottom to top) for each column, from the
 # leftmost column to the rightmost column
-# Registers changed: $ra, $a0, $a1, $s3, $t0, $t1, $t2, $s3, $s4 $s5, $s6, $s7
+# Registers changed: $ra, $a0, $a1, $t0, $t1, $t2, $s3, $s4 $s5, $s6, $s7
 # Persistent registers (throughout this function):
 # - $s3 = 1 if current outer loop has at least one falling capsule, 0 otherwise
 # - $s4 = offset of the current capsule position, relative to base bitmap
