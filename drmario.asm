@@ -229,7 +229,7 @@ game_loop:
     beq $t1, 0x73, handle_move_down     # Check if the key is 's'
     beq $t1, 0x64, handle_move_right    # Check if the key is 'd'
     beq $t1, 0x72, handle_reset         # Check if the key is 'r'
-    beq $t1, 0x7a, debug_change_capsule # Check if the key is 'z' TODO: delete this for production
+    beq $t1, 0x7a, handle_change_capsule # Check if the key is 'z'
     j after_handling_move               # Invalid key pressed
     handle_pause:
         jal pause
@@ -253,7 +253,7 @@ game_loop:
         jal move_right
         jal draw_outline
         j after_handling_move
-    debug_change_capsule:
+    handle_change_capsule:
         jal delete_outline
         jal remove_capsule
         j generate_new_capsule
@@ -2136,7 +2136,7 @@ pause:
         jal draw_pause
         # Sleep for a while
         li $v0, 32                      # syscall 32: sleep
-        li $a0, 50                      # Sleep for 10 ms
+        li $a0, 150                      # Sleep for 10 ms
         syscall
         lw $t0, ADDR_KBRD                   # $t0 = base address for keyboard
         lw $t1, 0($t0)                      # $t1 = first word from keyboard
