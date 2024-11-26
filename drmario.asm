@@ -59,7 +59,7 @@
 
 # Ground collision sound
 .macro PLAY_GROUND_COLLISION()
-    PLAY_SOUND(50, 300, 112, 120)
+    PLAY_SOUND(50, 300, 115, 120)
 .end_macro
 
 # Victory sound
@@ -78,7 +78,7 @@
 
 # Can't rotate sound
 .macro PLAY_CANT_ROTATE()
-    PLAY_SOUND(65, 100, 112, 100)
+    PLAY_SOUND(65, 100, 115, 100)
 .end_macro
 
     .data
@@ -110,9 +110,9 @@ LIGHT_GRAY:
 DARK_GRAY:
     .word 0x888888
 ADDR_NEXT_CAPSULE:
-    .word 0x100084b0
+    .word 0x10008230
 ADDR_START_CAPSULE:
-    .word 0x100084a0
+    .word 0x10008230
 BOTTLE_TL_X:
     .word 3
 BOTTLE_TL_Y:
@@ -205,41 +205,7 @@ game_loop:
     # Initialize the new capsule
     jal set_new_capsule
     jal draw_capsule
-    li $v0, 32
-   	li $a0, 50
-   	syscall
-    jal rotate
-    li $v0, 32
-   	li $a0, 50
-   	syscall
-    jal move_down
-
-    li $v0, 32
-   	li $a0, 50
-   	syscall
-    jal rotate
-    li $v0, 32
-   	li $a0, 50
-   	syscall
-    jal move_down
-
-    li $v0, 32
-   	li $a0, 50
-   	syscall
-    jal rotate
-    li $v0, 32
-   	li $a0, 50
-   	syscall
-    jal move_down
-
-    li $v0, 32
-   	li $a0, 50
-   	syscall
-    jal rotate
-    li $v0, 32
-   	li $a0, 50
-   	syscall
-    jal move_down
+    jal capsule_to_bottle_animation
 
     CLEAR_ALL_KEYBOARD_INPUTS()
     # Check if the new capsule can move down
@@ -2439,3 +2405,106 @@ check_unoccupied:
     co_occupied:
         li $v0, 0                   # The capsule is not black nor light gray, set return value to 0
         jr $ra
+
+##############################################################################
+# Function to move the capsule to the left and rotate it
+# Parameters: $a3 = how many times to move the capsule to the left
+capsule_to_left:
+    STORE_TO_STACK($ra)
+    li $t0, 0
+    ctl_rotate_move_left_loop: beq $t0, $a3, ctl_rotate_move_left_end
+        STORE_TO_STACK($t0)
+        STORE_TO_STACK($a3)
+        jal rotate
+        RESTORE_FROM_STACK($a3)
+        RESTORE_FROM_STACK($t0)
+
+        li $v0, 32
+        li $a0, 50
+        syscall
+        STORE_TO_STACK($t0)
+        STORE_TO_STACK($a3)
+        jal move_left
+        RESTORE_FROM_STACK($a3)
+        RESTORE_FROM_STACK($t0)
+        li $v0, 32
+        li $a0, 50
+        addi $t0, $t0, 1
+        j ctl_rotate_move_left_loop
+
+    ctl_rotate_move_left_end:
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+
+##############################################################################
+# Function to move the capsule to the right and rotate it
+# Parameters: $a3 = how many times to move the capsule to the right
+capsule_to_right:
+    STORE_TO_STACK($ra)
+    li $t0, 0
+    ctr_rotate_move_right_loop: beq $t0, $a3, ctr_rotate_move_right_end
+        STORE_TO_STACK($t0)
+        STORE_TO_STACK($a3)
+        jal rotate
+        RESTORE_FROM_STACK($a3)
+        RESTORE_FROM_STACK($t0)
+        li $v0, 32
+        li $a0, 50
+        syscall
+        STORE_TO_STACK($t0)
+        STORE_TO_STACK($a3)
+        jal move_right
+        RESTORE_FROM_STACK($a3)
+        RESTORE_FROM_STACK($t0)
+        li $v0, 32
+        li $a0, 50
+        addi $t0, $t0, 1
+        j ctr_rotate_move_right_loop
+
+    ctr_rotate_move_right_end:
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+
+##############################################################################
+# Function to move the capsule to the bottom and rotate it
+# Parameters: $a3 = how many times to move the capsule to the bottom
+capsule_to_bottom:
+    STORE_TO_STACK($ra)
+    li $t0, 0
+    ctb_rotate_move_down_loop: beq $t0, $a3, ctb_rotate_move_down_end
+        STORE_TO_STACK($t0)
+        STORE_TO_STACK($a3)
+        jal rotate
+        RESTORE_FROM_STACK($a3)
+        RESTORE_FROM_STACK($t0)
+        li $v0, 32
+        li $a0, 50
+        syscall
+        STORE_TO_STACK($t0)
+        STORE_TO_STACK($a3)
+        jal move_down
+        RESTORE_FROM_STACK($a3)
+        RESTORE_FROM_STACK($t0)
+        li $v0, 32
+        li $a0, 50
+        addi $t0, $t0, 1
+        j ctb_rotate_move_down_loop
+
+    ctb_rotate_move_down_end:
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+##############################################################################
+# Function for moving capsule to the bottle animation
+capsule_to_bottle_animation:
+    STORE_TO_STACK($ra)
+    li $a3, 4
+    jal capsule_to_left
+    li $a3, 8
+    jal capsule_to_bottom
+    RESTORE_FROM_STACK($ra)
+    jr $ra
+
+
