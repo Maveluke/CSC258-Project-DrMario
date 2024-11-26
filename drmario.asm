@@ -1159,10 +1159,39 @@ draw_bottle:
     # Draw the bottle
     lw $s6, GRID_WIDTH              # $s6 = width of the inside of the bottle
     lw $s7, GRID_HEIGHT             # $s7 = height of the inside of the bottle
+
+    li $a0, 18                     # $a0 = Starting X coordinate
+    li $a1, 0                      # $a1 = Starting Y coordinate
+    li $a2, 3                      # $a2 = Length of the line
+    lw $a3, WHITE                  # $a3 = Colour
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    STORE_TO_STACK($a3)
+    jal draw_vertical_line
+    RESTORE_FROM_STACK($a3)
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    li $a0, 6                      # $a0 = Starting X coordinate
+    li $a1, 2                      # $a1 = Starting Y coordinate
+    li $a2, 13                     # $a2 = Length of the line
+    lw $a3, WHITE                  # $a3 = Colour
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    STORE_TO_STACK($a3)
+    jal draw_horizontal_line
+    RESTORE_FROM_STACK($a3)
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
     # Draw the top of the bottle
-    li $a0, 6                       # $a3 = Starting X coordinate
-    li $a1, 9                       # $a2 = Starting Y coordinate
-    li $a2, 4                       # $a2 = Length of the line
+    li $a0, 6                       # $a0 = Starting X coordinate
+    li $a1, 2                       # $a1 = Starting Y coordinate
+    li $a2, 11                      # $a2 = Length of the line
     lw $a3, WHITE                   # $a3 = Colour
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
@@ -1175,8 +1204,36 @@ draw_bottle:
     RESTORE_FROM_STACK($a0)
 
     li $a0, 10                      # $a3 = Starting X coordinate
-    li $a1, 9                       # $a2 = Starting Y coordinate
-    li $a2, 4                       # $a2 = Length of the line
+    li $a1, 7                       # $a2 = Starting Y coordinate
+    li $a2, 6                       # $a2 = Length of the line
+    lw $a3, WHITE                   # $a3 = Colour
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    STORE_TO_STACK($a3)
+    jal draw_vertical_line
+    RESTORE_FROM_STACK($a3)
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    li $a0, 10                      # $a3 = Starting X coordinate
+    li $a1, 7                       # $a2 = Starting Y coordinate
+    li $a2, 14                      # $a2 = Length of the line
+    lw $a3, WHITE                   # $a3 = Colour
+    STORE_TO_STACK($a0)
+    STORE_TO_STACK($a1)
+    STORE_TO_STACK($a2)
+    STORE_TO_STACK($a3)
+    jal draw_horizontal_line
+    RESTORE_FROM_STACK($a3)
+    RESTORE_FROM_STACK($a2)
+    RESTORE_FROM_STACK($a1)
+    RESTORE_FROM_STACK($a0)
+
+    li $a0, 23                      # $a3 = Starting X coordinate
+    li $a1, 0                       # $a2 = Starting Y coordinate
+    li $a2, 8                       # $a2 = Length of the line
     lw $a3, WHITE                   # $a3 = Colour
     STORE_TO_STACK($a0)
     STORE_TO_STACK($a1)
